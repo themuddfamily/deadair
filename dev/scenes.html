@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEAD AIR — scenes harness</title>
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/ui.css">
+  <link rel="stylesheet" href="../css/scenes.css">
+  <style>
+    /* harness chrome only (prefixed scdev-) */
+    #scdev-panel {
+      position: fixed; left: 6px; top: 6px; z-index: 1000; max-width: 560px;
+      font: 11px/1.3 monospace; color: #cfd3c6; background: rgba(8, 10, 9, 0.86);
+      border: 1px solid #333; padding: 6px 8px; user-select: none;
+    }
+    #scdev-panel button { font: 11px monospace; margin: 2px 2px; padding: 2px 6px; background: #151916; color: #d8dccf; border: 1px solid #444; cursor: pointer; }
+    #scdev-panel button:hover { border-color: #ffb347; color: #ffb347; }
+    #scdev-panel .row { margin: 3px 0; }
+    #scdev-panel .lbl { color: #7a8074; display: inline-block; width: 70px; }
+    #scdev-status { color: #8fd49f; margin-top: 4px; white-space: pre; }
+    body.scdev-clean #scdev-panel { display: none; }
+    .scdev-title { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: #050605; color: #6b7066; font: calc(var(--u) * 3) monospace; letter-spacing: 0.3em; }
+    .scdev-sub { position: absolute; left: 10%; right: 10%; bottom: 7%; text-align: center; color: #e8e9d8;
+      font: calc(var(--u) * 2.4) 'IBM Plex Mono', monospace; text-shadow: 0 0 4px #000, 0 0 8px #000; }
+    .scdev-sub .spk { color: #9fb89a; }
+  </style>
+</head>
+<body>
+  <div id="game">
+    <div id="stage">
+      <canvas id="view" width="480" height="270"></canvas>
+      <div id="hud"></div>
+      <div id="screens"></div>
+    </div>
+  </div>
+
+  <div id="scdev-panel">
+    <div class="row"><span class="lbl">drive</span>
+      <button data-run="drive:arrive">arrive</button><button data-run="drive:loop">loop</button><button data-run="drive:loop2">loop 2</button>
+      <button data-run="drive:escape">escape</button><button data-run="drive:dawn">dawn</button><button data-run="drive:months_later">months later</button></div>
+    <div class="row"><span class="lbl">scenes</span>
+      <button data-run="cutscene">cutscene</button><button data-run="transparent">overlay cut</button><button data-run="multiverse">multiverse</button>
+      <button data-run="death">death</button><button data-run="credits">credits</button><button data-run="post">post-credits</button></div>
+    <div class="row"><span class="lbl">endings</span>
+      <button data-run="ending:destroy">destroy</button><button data-run="ending:maintain">maintain</button>
+      <button data-run="ending:open">open</button><button data-run="ending:secret">secret</button></div>
+    <div class="row"><span class="lbl">misc</span>
+      <button data-run="world">start world</button><button data-run="save">save archive</button><button data-run="audio">audio on</button>
+      <button data-run="skip">skip (Esc)</button><button data-run="stop">stop</button><button data-run="hide">hide panel (H)</button></div>
+    <div id="scdev-status">booting…</div>
+  </div>
+
+  <script>
+    // Module set: ?solo → core + scenes only (every other module stubbed); default → every real
+    // module that PLAN lists and exists in js/ at the time of writing (missing ones are stubbed).
+    (function () {
+      const solo = /[?&]solo\b/.test(location.search);
+      const mods = solo ? ['core', 'scenes'] : ['core', 'content', 'textures', 'raycaster', 'audio', 'maps', 'world', 'ui', 'scenes'];
+      for (const m of mods) document.write('<script src="../js/' + m + '.js"><\/script>');
+    })();
+  </script>
+  <script>
+  (function () {
+    'use strict';
+    const DA = window.DA;
+
+    /* ---- stubs for modules that are absent (null-guards are tested in ?solo) ---- */
+    DA.bus.on('boot', () => {
+      if (!DA.modes.defs.title) {
+        let el = null;
+        DA.modes.register('title', {
+          opaque: true,
+          enter() { el = DA.util.el('div', { class: 'scdev-title', text: 'TITLE (harness stub)' }); document.getElementById('screens').appendChild(el); },
+          exit() { if (el) el.remove(); el = null; },
+        });
+      }
+      if (!DA.modes.defs.pause) {
+        DA.modes.register('pause', {
+          opaque: false, blocksWorld: true,
+          enter() { DA.setPaused(true); }, exit() { DA.setPaused(false); },
+          onKey(e, down) { if (down && e.code === 'Escape') { DA.modes.pop('pause'); return true; } return true; },
+        });
+      }
+    });
+    if (!DA.ui) {
+      // minimal subtitle strip in #hud, like ui.js would draw
+      let box = null, timer = null;
+      DA.ui = {
+        subtitle(text, o) {
+          o = o || {};
+          if (!box) { box = DA.util.el('div', { class: 'scdev-sub' }); document.getElementById('hud').appendChild(box); }
+          const sp = DA.content && DA.content.speakers && DA.content.speakers[o.speaker];
+          const name = sp ? sp.name : o.speaker ? String(o.speaker).toUpperCase() : '';
+          const t = o.clarity != null && o.clarity < 0.97 ? DA.util.garble(text, o.clarity, 1) : text;
+          box.innerHTML = (name ? '<span class="spk">' + DA.util.esc(name) + ':</span> ' : '') + DA.util.esc(t);
+          clearTimeout(timer);
+          timer = setTimeout(() => { box.textContent = ''; }, ((o.dur || DA.util.lineDur(text)) + 0.3) * 1000);
+          window.__subs = (window.__subs || []).concat([{ text, o }]);
+          return 1;
+        },
+        clearSubtitles() { if (box) box.textContent = ''; },
+        history() { return []; },
+      };
+    }
+
+    /* ---- stage sizing (same as main.js) ---- */
+    function fitStage() {
+      const w = window.innerWidth, h = window.innerHeight;
+      let sw = w, sh = (w * 9) / 16;
+      if (sh > h) { sh = h; sw = (h * 16) / 9; }
+      document.documentElement.style.setProperty('--stage-w', Math.floor(sw) + 'px');
+      document.documentElement.style.setProperty('--stage-h', Math.floor(sh) + 'px');
+      DA.bus.emit('resize', { w: Math.floor(sw), h: Math.floor(sh) });
+    }
+    window.addEventListener('resize', fitStage);
+
+    /* ---- actions ---- */
+    const S = () => DA.scenes;
+    const results = (window.__results = []);
+    const track = (name, p) => { const rec = { name, result: null, t0: performance.now() }; results.push(rec); p.then((r) => { rec.result = r; rec.ms = performance.now() - rec.t0; }); return p; };
+    const clear = () => { DA.modes.clear(); };
+    const ACTIONS = {
+      'drive:arrive': () => S().drive({ kind: 'arrive', skippable: true }),
+      'drive:loop': () => S().drive({ kind: 'loop', loop: 1, skippable: true }),
+      'drive:loop2': () => S().drive({ kind: 'loop', loop: 2, skippable: true }),
+      'drive:escape': () => S().drive({ kind: 'escape', skippable: true }),
+      'drive:dawn': () => S().drive({ kind: 'dawn', skippable: true, captions: [{ at: 2.5, text: '27 OCT 1999 — 06:58' }] }),
+      'drive:months_later': () => S().drive({ kind: 'months_later', skippable: true, radioLine: 'You only destroyed yours.' }),
+      cutscene: () => S().play([
+        { image: 'static', static: 0.2 },
+        { text: 'THE LONG NIGHT', style: 'card', dur: 4 },
+        { image: 'black', static: 0 },
+        { text: '27 OCT 1999 — 02:31', style: 'caption', dur: 3.5 },
+        { image: 'newspaper' },
+        { text: 'The date is 27 October 2049.', style: 'center', dur: 4 },
+        { image: 'abandoned' },
+        { voice: { speaker: 'you', text: 'Station Fourteen, radio check.', radio: true } },
+        { text: 'RECORDING — 1961', style: 'small', dur: 3 },
+        { image: 'tape' },
+        { voice: { speaker: 'researcher_a', text: 'Subject demonstrated zero interaction.', style: 'type', keep: true } },
+        { voice: { speaker: 'researcher_b', text: "So that's it?", style: 'type', keep: true } },
+        { wait: 1 },
+        { clear: true },
+        { image: 'multiverse', wait: 3 },
+        { fade: { to: 1, secs: 1.5 } },
+      ], { skippable: true, fadeIn: 1 }),
+      transparent: () => S().play([
+        { text: 'THE LONG NIGHT', style: 'card', dur: 3.5 },
+        { text: 'Autosaved.', style: 'small', dur: 2 },
+      ], { transparent: true }),
+      multiverse: () => S().multiverse(14),
+      death: () => S().death({ room: 'radio', map: 'station', lines: ['Don\'t turn around.'] }),
+      credits: () => S().credits({ ending: 'destroy' }),
+      post: () => S().postCredits(),
+      'ending:destroy': () => S().ending('destroy'),
+      'ending:maintain': () => S().ending('maintain'),
+      'ending:open': () => S().ending('open'),
+      'ending:secret': () => S().ending('secret'),
+      world: () => { DA.newGame('TESTER'); return Promise.resolve('world'); },
+      save: () => Promise.resolve(DA.archive.save(1, 'HARNESS')),
+      audio: () => Promise.resolve(DA.audio && DA.audio.init && DA.audio.init()),
+      skip: () => Promise.resolve(S().skip()),
+      stop: () => Promise.resolve(clear()),
+      hide: () => Promise.resolve(document.body.classList.toggle('scdev-clean')),
+    };
+    window.H = {
+      run(name) { const f = ACTIONS[name]; if (!f) throw new Error('no action ' + name); return track(name, f()); },
+      /**
+       * Fast-forward the simulation deterministically. Async: microtasks are flushed after every
+       * step (as between real animation frames) so scene scripts' awaits progress in step.
+       */
+      async ff(secs, dt) {
+        dt = dt || 1 / 30;
+        for (let t = 0; t < secs - 1e-9; t += dt) {
+          DA.step(dt);
+          DA.input.endFrame();
+          for (let k = 0; k < 8; k++) await Promise.resolve();
+        }
+      },
+      results,
+      clean(on) { document.body.classList.toggle('scdev-clean', on !== false); },
+    };
+    document.getElementById('scdev-panel').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-run]');
+      if (b) H.run(b.dataset.run);
+    });
+    window.addEventListener('keydown', (e) => { if (e.code === 'KeyH' && !DA.scenes.current()) document.body.classList.toggle('scdev-clean'); });
+
+    window.addEventListener('load', () => {
+      fitStage();
+      DA.boot();
+      const st = document.getElementById('scdev-status');
+      setInterval(() => {
+        const sc = DA.scenes.current();
+        const mods = ['content', 'textures', 'render', 'audio', 'maps', 'world', 'ui'].filter((m) => DA[m]).join(' ');
+        st.textContent = 'mode: ' + (DA.modes.top() ? DA.modes.stack.map((e) => e.name).join(' > ') : '-') + '   scene: ' + (sc || '-') +
+          '   fps: ' + DA.fps + '\nmodules: ' + mods + '   running: ' + DA.running + '   deaths: ' + DA.meta.deaths.length +
+          '   endings: ' + JSON.stringify(DA.meta.endings);
+      }, 250);
+    });
+  })();
+  </script>
+</body>
+</html>

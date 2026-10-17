@@ -1,0 +1,299 @@
+/* DEAD AIR — scenes.css: full-screen cinematics (DA.scenes): drive, cutscene, multiverse,
+ * death, ending, credits. Pixel canvases scale like #view; all text is sized in var(--u). */
+
+.sc-scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+  color: var(--ink);
+  pointer-events: auto;
+  cursor: none;
+  z-index: 1;
+}
+.sc-scene.sc-transparent { background: transparent; pointer-events: none; }
+.sc-death, .sc-credits { cursor: default; }
+
+.sc-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.sc-fade { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+
+/* ---------------------------------------------------------------- drive */
+.sc-caps {
+  position: absolute;
+  left: 9%;
+  top: 15%;
+  z-index: 3;
+  pointer-events: none;
+}
+.sc-cap {
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 2.5);
+  letter-spacing: 0.32em;
+  color: rgba(232, 234, 224, 0.92);
+  text-shadow: 0 0 calc(var(--u) * 0.8) rgba(0, 0, 0, 0.9), 0 0 calc(var(--u) * 2.4) rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  margin-top: calc(var(--u) * 1.2);
+}
+.sc-hint {
+  position: absolute;
+  right: 3%;
+  bottom: 3%;
+  z-index: 6;
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 1.7);
+  letter-spacing: 0.24em;
+  color: var(--ink-dim);
+  opacity: 0;              /* faded in/out on the scene clock (Scene.opacity) */
+  pointer-events: none;
+}
+.sc-sub {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 8%;
+  z-index: 6;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 2.4);
+  color: #e9ead8;
+  text-shadow: 0 0 calc(var(--u) * 0.6) #000, 0 0 calc(var(--u) * 0.6) #000;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- cutscene text */
+.sc-text {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 2.2);
+  pointer-events: none;
+}
+.sc-t { max-width: 76%; text-align: center; }
+.sc-t-card .sc-t-body {
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 4.4);
+  letter-spacing: 0.46em;
+  text-indent: 0.46em;
+  color: #e3e5da;
+  text-shadow: 0 0 calc(var(--u) * 2) rgba(0, 0, 0, 0.8);
+}
+.sc-t-center {
+  /* a soft dark band behind centred lines: they must read over any image (the maintain dawn road) */
+  padding: calc(var(--u) * 1.6) calc(var(--u) * 6);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.42) 45%, rgba(0, 0, 0, 0) 74%);
+}
+.sc-t-center .sc-t-body {
+  font-family: var(--font-type);
+  font-size: calc(var(--u) * 3.4);
+  line-height: 1.45;
+  color: #f3eee0;
+  text-shadow: 0 0 calc(var(--u) * 0.35) #000, 0 0 calc(var(--u) * 1.2) rgba(0, 0, 0, 0.95), 0 0 calc(var(--u) * 3) rgba(0, 0, 0, 0.7);
+}
+.sc-t-caption {
+  position: absolute;
+  left: 8%;
+  bottom: 12%;
+  text-align: left;
+}
+.sc-t-caption .sc-t-body {
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 2.5);
+  letter-spacing: 0.3em;
+  color: rgba(232, 234, 224, 0.92);
+  text-shadow: 0 0 calc(var(--u) * 1) #000;
+}
+.sc-t-small {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 9%;
+  max-width: none;
+}
+.sc-t-small .sc-t-body {
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 1.9);
+  letter-spacing: 0.24em;
+  color: var(--ink-dim);
+}
+.sc-t-type {
+  width: 62%;
+  max-width: 62%;
+  text-align: left;
+}
+.sc-t-type .sc-t-body {
+  font-family: var(--font-type);
+  font-size: calc(var(--u) * 3);
+  line-height: 1.4;
+  color: #e4e0d2;
+  min-height: 1.4em;
+}
+.sc-t-label {
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 1.5);
+  letter-spacing: 0.3em;
+  color: var(--ink-dim);
+  margin-bottom: calc(var(--u) * 0.5);
+}
+.sc-cursor {
+  display: inline-block;
+  margin-left: 0.12em;
+  font-size: 0.8em;
+  color: rgba(228, 224, 210, 0.75);
+  animation: sc-blink 1s steps(2) infinite;
+}
+.sc-cursor-idle { opacity: 0; animation: none; }
+@keyframes sc-blink { 50% { opacity: 0; } }
+
+/* ---------------------------------------------------------------- death */
+.sc-death-box {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.sc-death-lines {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 2.6);
+  min-height: calc(var(--u) * 14);
+}
+.sc-death-line {
+  font-family: var(--font-type);
+  font-size: calc(var(--u) * 3.6);
+  color: #ebe7da;
+  text-shadow: 0 0 calc(var(--u) * 1.2) rgba(0, 0, 0, 1), 0 0 calc(var(--u) * 3.5) rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+}
+.sc-death-call { color: #d9d4c4; }
+.sc-death-stamp {
+  margin-top: calc(var(--u) * 7);
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 1.9);
+  letter-spacing: 0.26em;
+  color: #b9bdb2;
+  text-shadow: 0 0 calc(var(--u) * 1) #000;
+}
+.sc-death-entry {
+  margin-top: calc(var(--u) * 0.8);
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 1.4);
+  letter-spacing: 0.3em;
+  color: var(--ink-dim);
+}
+.sc-death-btn {
+  pointer-events: auto;
+  margin-top: calc(var(--u) * 5);
+  font-size: calc(var(--u) * 2.2);
+  letter-spacing: 0.34em;
+  padding: calc(var(--u) * 1.1) calc(var(--u) * 3.2);
+  background: rgba(6, 8, 7, 0.82);
+  border-color: #5a5f56;
+}
+.sc-death-btn:disabled { opacity: 0; }
+
+/* ---------------------------------------------------------------- credits */
+.sc-credits-bg { opacity: 0.8; }
+.sc-roll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 3;
+  text-align: center;
+  will-change: transform;
+  pointer-events: none;
+}
+.sc-roll-title {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: calc(var(--u) * 7);
+  letter-spacing: 0.55em;
+  text-indent: 0.55em;
+  color: #e6e8dc;
+}
+.sc-roll-label {
+  margin-top: calc(var(--u) * 7);
+  font-size: calc(var(--u) * 1.5);
+  letter-spacing: 0.5em;
+  text-indent: 0.5em;
+  color: var(--ink-dim);
+}
+.sc-roll-ending {
+  margin-top: calc(var(--u) * 1.4);
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 3);
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: #eadcc0;
+}
+.sc-roll-sec { margin-top: calc(var(--u) * 11); }
+.sc-roll-h {
+  font-size: calc(var(--u) * 1.5);
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  color: var(--ink-dim);
+  margin-bottom: calc(var(--u) * 1.6);
+}
+.sc-roll-line {
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 2.3);
+  line-height: 1.7;
+  letter-spacing: 0.08em;
+  color: #d9dbd0;
+}
+.sc-roll-missing { color: #4d514a; letter-spacing: 0.3em; }
+.sc-roll-now { color: var(--amber); }
+.sc-roll-small {
+  margin-top: calc(var(--u) * 1.2);
+  font-size: calc(var(--u) * 1.5);
+  letter-spacing: 0.3em;
+  color: var(--ink-dim);
+}
+.sc-roll-end { margin-top: calc(var(--u) * 26); padding-bottom: calc(var(--u) * 10); }
+.sc-roll-freq {
+  font-family: var(--font-lcd);
+  font-size: calc(var(--u) * 7);
+  letter-spacing: 0.12em;
+  color: var(--amber);
+  text-shadow: 0 0 calc(var(--u) * 1.6) rgba(255, 170, 60, 0.45);
+}
+
+/* narrative sentences captioned during a drive (e.g. the destroy ending's "months later") */
+.sc-cap.sc-cap-line {
+  font-family: var(--font-type);
+  font-size: calc(var(--u) * 2.8);
+  letter-spacing: 0.02em;
+  white-space: normal;
+  max-width: calc(var(--stage-w) * 0.62);
+  line-height: 1.35;
+}
+
+/* transcripts under the tape counter image sit in the lower half */
+.sc-text.sc-text-low { justify-content: flex-end; padding-bottom: calc(var(--u) * 16); }
+.sc-type-rest { visibility: hidden; }
+/* play({textOver}): the words ride above the fade layer (.sc-fade z 5) */
+.sc-text.sc-text-over { z-index: 6; }
+
+/* Decision 8: during a drive the subtitle band (DA.ui's .ui-bottom, and the scene's own fallback
+ * strip) rides above the dashboard — the dash top and the wheel rim sit at ~72–74% of the frame,
+ * the car stereo's LCD at 88–93% — so the '[RADIO] CAR RADIO: …' line never covers the stereo
+ * display or the gauges. */
+body[data-mode="drive"] #ui-over .ui-bottom { bottom: calc(var(--u) * 28.5); }
+.sc-drive .sc-sub { bottom: 28.5%; }

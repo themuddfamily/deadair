@@ -1,0 +1,90 @@
+/* DEAD AIR — minimap.css: the corner minimap (#mm-mini in #hud) and the full plan sheet (#mm-plan in
+ * #screens). Sized in var(--u) (1% of the 16:9 stage height). Visibility follows body[data-mode]
+ * (set by core), body.ui-card-on / body.ui-at-title (set by ui.js) and .mm-off / .mm-dark / .mm-hush
+ * (set by minimap.js).
+ */
+
+/* ================================================================ corner minimap */
+.mm-mini {
+  position: absolute;
+  right: calc(var(--u) * 3.4);
+  bottom: calc(var(--u) * 3.6);
+  /* 22u, not below ~118 px (the lettering stops being legible under that), and never over 26u:
+   * the subtitle box (.ui-bottom, 118u wide, centred) ends 29.9u from the stage's right edge */
+  width: min(max(calc(var(--u) * 22), 118px), calc(var(--u) * 26));
+  height: min(max(calc(var(--u) * 22), 118px), calc(var(--u) * 26));
+  pointer-events: none;
+  opacity: 0.93;
+  transition: opacity 0.35s ease;
+  filter: drop-shadow(0 calc(var(--u) * 0.4) calc(var(--u) * 1.2) rgba(0, 0, 0, 0.75));
+}
+.mm-mini .mm-cv { display: block; width: 100%; height: 100%; }
+/* explore only; never on the title, the shift register, under title cards */
+body:not([data-mode="explore"]) .mm-mini,
+.mm-mini.mm-off { opacity: 0 !important; visibility: hidden; transition: none; }
+body.ui-card-on .mm-mini { opacity: 0 !important; transition: opacity 0.2s ease; }
+/* main power off (the dark): dimmed; the red emergency cast itself is drawn on the canvas */
+.mm-mini.mm-dark { opacity: 0.4; transition: opacity 1.2s ease; }
+/* LISTEN. — "No waypoint. Nothing else." — and the entity hunting / stalking close by: the map all
+ * but goes out (after .mm-dark: this wins when both apply) */
+.mm-mini.mm-hush { opacity: 0.16; transition: opacity 1.4s ease; }
+body.ui-at-title .mm-mini, body[data-mode="name"] .mm-mini { display: none; }
+
+/* ================================================================ the full plan
+ * The sheet hangs from the top of the stage (hint above it) and ends at ~83u, so the subtitle band
+ * (.ui-bottom: 6.5u from the bottom, one or two lines ≈ 84–93.5u) stays clear of the drawing. */
+.mm-plan {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: calc(var(--u) * 1.1);
+  gap: calc(var(--u) * 0.9);
+  pointer-events: auto;
+  cursor: default;
+  /* not opaque: the station is still there around the edges of the paper */
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.62) 72%, rgba(0, 0, 0, 0.72) 100%);
+  animation: mm-plan-in 0.28s ease-out;
+}
+.mm-plan.mm-hidden { display: none; }
+@keyframes mm-plan-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.mm-sheet-wrap {
+  position: relative;
+  transform: rotate(-0.7deg);
+  animation: mm-unfold 0.32s cubic-bezier(0.2, 0.8, 0.25, 1);
+  box-shadow:
+    0 calc(var(--u) * 1.2) calc(var(--u) * 4) rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+@keyframes mm-unfold {
+  from { transform: rotate(-2.2deg) scale(0.96) translateY(calc(var(--u) * 2)); opacity: 0.2; }
+  to { transform: rotate(-0.7deg) scale(1) translateY(0); opacity: 1; }
+}
+.mm-sheet {
+  display: block;
+  width: calc(var(--u) * 126);
+  height: calc(var(--u) * 78);
+}
+.mm-plan-hint {
+  order: -1;
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 1.45);
+  letter-spacing: 0.32em;
+  padding-left: 0.32em;
+  color: rgba(214, 222, 210, 0.62);
+  text-shadow: 0 0 calc(var(--u) * 0.6) #000;
+  white-space: nowrap;
+}
+/* control hints never land on the drawing (ui.css already keeps them to explore / radio) */
+body[data-mode="plan"] #hud .ui-hint { opacity: 0 !important; transition: none; }
+/* the injected settings row reuses ui.css's .ui-s-row styling */
+.mm-s-row { cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-plan, .mm-sheet-wrap { animation: none; }
+}

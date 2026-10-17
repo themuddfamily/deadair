@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEAD AIR — radio integration harness</title>
+  <!-- Integration harness: every real module that exists (no director yet), the radio desk
+       driven with real DA.content transmissions. ?manual → deterministic DA.step (tests). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/ui.css">
+  <link rel="stylesheet" href="../css/radio.css">
+  <link rel="stylesheet" href="../css/devices.css">
+  <link rel="stylesheet" href="../css/scenes.css">
+  <script>
+    if (/[?&]manual\b/.test(location.search)) window.requestAnimationFrame = function () { return 0; };
+  </script>
+</head>
+<body>
+  <div id="game">
+    <div id="stage">
+      <canvas id="view" width="480" height="270"></canvas>
+      <div id="hud"></div>
+      <div id="screens"></div>
+    </div>
+  </div>
+  <script src="../js/core.js"></script>
+  <script src="../js/content.js"></script>
+  <script src="../js/textures.js"></script>
+  <script src="../js/raycaster.js"></script>
+  <script src="../js/audio.js"></script>
+  <script src="../js/maps.js"></script>
+  <script src="../js/world.js"></script>
+  <script src="../js/radio.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/devices.js"></script>
+  <script src="../js/scenes.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const DA = window.DA;
+    function fitStage() {
+      const w = window.innerWidth, h = window.innerHeight;
+      let sw = w, sh = (w * 9) / 16;
+      if (sh > h) { sh = h; sw = (h * 16) / 9; }
+      const root = document.documentElement.style;
+      root.setProperty('--stage-w', Math.floor(sw) + 'px');
+      root.setProperty('--stage-h', Math.floor(sh) + 'px');
+      DA.bus.emit('resize', { w: Math.floor(sw), h: Math.floor(sh) });
+    }
+    window.addEventListener('resize', fitStage);
+    window.stepFor = async (sec, dt) => {
+      dt = dt || 1 / 60;
+      for (let t = 0; t < sec - 1e-9; t += dt) {
+        DA.step(dt);
+        DA.input.endFrame();
+        for (let k = 0; k < 40; k++) await null;
+      }
+    };
+    window.addEventListener('load', () => {
+      fitStage();
+      DA.boot();
+      DA.newGame('Adam');
+      DA.modes.push('explore');
+      // stand in the radio room, facing the desk
+      const p = DA.world && DA.world.point && DA.world.point('pt_desk_stand');
+      if (p) DA.world.teleport(p.x, p.y, p.angle != null ? p.angle : -90, p.map);
+      if (/[?&]sit\b/.test(location.search)) DA.radio.sit();
+    });
+  })();
+  </script>
+</body>
+</html>

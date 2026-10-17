@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEAD AIR — world harness</title>
+<style>
+  :root { --bg: #0b0c0b; --panel: #151715; --ink: #d8dccf; --dim: #8a8f84; --amber: #ffb347; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 12px/1.4 'IBM Plex Mono', 'Courier New', monospace; }
+  #wd-wrap { display: flex; gap: 10px; padding: 10px; align-items: flex-start; }
+  #wd-side { width: 300px; flex: none; background: var(--panel); padding: 8px; border: 1px solid #2a2d29; }
+  #wd-side h3 { margin: 10px 0 4px; font-size: 11px; color: var(--amber); letter-spacing: .08em; }
+  #wd-side button, #wd-side select { font: inherit; background: #20231f; color: var(--ink); border: 1px solid #3a3e38; padding: 2px 6px; margin: 2px 2px 2px 0; cursor: pointer; }
+  #wd-side button.on { border-color: var(--amber); color: var(--amber); }
+  #wd-side label { display: inline-block; margin-right: 8px; }
+  #wd-info { white-space: pre-wrap; color: var(--dim); font-size: 11px; }
+  #wd-log { white-space: pre-wrap; color: var(--dim); font-size: 10px; max-height: 220px; overflow: auto; border-top: 1px solid #2a2d29; margin-top: 6px; }
+  #wd-main { display: flex; flex-direction: column; gap: 8px; }
+  #wd-map { image-rendering: pixelated; border: 1px solid #2a2d29; background: #000; cursor: crosshair; }
+  /* first-person view (only when js/raycaster.js provides DA.render) */
+  #game { position: relative; width: 768px; height: 432px; background: #000; display: none; }
+  #game.wd-on { display: block; }
+  #stage { position: absolute; inset: 0; }
+  #view { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+  #hud, #screens { position: absolute; inset: 0; pointer-events: none; }
+  #wd-prompt { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); color: #fff; text-shadow: 0 0 3px #000; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="wd-wrap">
+  <div id="wd-side">
+    <div><b>WORLD HARNESS</b> — WASD walk · mouse-drag look · E use · C crouch · F light · click map = teleport</div>
+    <h3>MAP</h3>
+    <div id="wd-maps"></div>
+    <h3>VIEW</h3>
+    <label><input type="checkbox" id="wd-labels" checked> labels</label>
+    <label><input type="checkbox" id="wd-lightmap"> light map</label>
+    <label><input type="checkbox" id="wd-decor" checked> decor</label>
+    <label><input type="checkbox" id="wd-follow"> follow player</label>
+    <h3>MUTATIONS</h3>
+    <div id="wd-muts"></div>
+    <h3>POWER</h3>
+    <div id="wd-power"></div>
+    <h3>STATE</h3>
+    <div id="wd-info"></div>
+    <div id="wd-log"></div>
+  </div>
+  <div id="wd-main">
+    <div id="game"><div id="stage"><canvas id="view" width="480" height="270"></canvas><div id="hud"><div id="wd-prompt"></div></div><div id="screens"></div></div></div>
+    <canvas id="wd-map" width="800" height="600"></canvas>
+  </div>
+</div>
+<script src="../js/core.js"></script>
+<!-- optional modules: the harness works without them -->
+<script src="../js/content.js" onerror="console.info('[harness] no content.js')"></script>
+<script src="../js/textures.js" onerror="console.info('[harness] no textures.js')"></script>
+<script src="../js/raycaster.js" onerror="console.info('[harness] no raycaster.js')"></script>
+<script src="../js/maps.js"></script>
+<script src="../js/world.js"></script>
+<script src="world-debug.js"></script>
+<script src="world-tests.js"></script>
+<script>
+  // ---- stubs for modules the world talks to (only where the real one is missing)
+  (function () {
+    const DA = window.DA;
+    const log = (...a) => { WD.log(a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ')); };
+    window.WD_CALLS = { audio: [], ui: [] };
+    if (!DA.ui) {
+      DA.ui = {
+        prompt: (t) => { document.getElementById('wd-prompt').textContent = t || ''; WD_CALLS.ui.push(['prompt', t]); },
+        toast: (t) => { log('toast:', t); WD_CALLS.ui.push(['toast', t]); },
+        hint: (t) => { log('hint:', t); WD_CALLS.ui.push(['hint', t]); },
+        think: (t) => { log('think:', t); WD_CALLS.ui.push(['think', t]); return Promise.resolve(); },
+        doc: (d) => { log('doc:', typeof d === 'string' ? d : d.title); WD_CALLS.ui.push(['doc', d]); return Promise.resolve(); },
+        fade: (to, s) => { WD_CALLS.ui.push(['fade', to, s]); return Promise.resolve(true); },
+        journal: () => { log('journal'); WD_CALLS.ui.push(['journal']); },
+        toggleWatch: () => { log('watch'); WD_CALLS.ui.push(['watch']); },
+      };
+    }
+    if (!DA.audio) {
+      DA.audio = {
+        play: (n, o) => { WD_CALLS.audio.push([n, o]); if (WD_CALLS.audio.length > 4000) WD_CALLS.audio.splice(0, 2000); return { stop() {} }; },
+        loop: () => ({ stop() {}, setVol() {}, setPos() {} }),
+        listener: () => {},
+        ambience: (p) => { WD_CALLS.lastAmbience = p; },
+      };
+    }
+    DA.modes.register('pause', { blocksWorld: true, onKey: (e, d) => { if (d && e.code === 'Escape') { DA.modes.pop('pause'); return true; } return false; } });
+    window.addEventListener('load', () => {
+      DA.boot();
+      if (DA.render && DA.render.init && document.getElementById('view')) document.getElementById('game').classList.add('wd-on');
+      DA.newGame('TESTER');
+      DA.modes.push('explore');
+      WD.init();
+    });
+  })();
+</script>
+</body>
+</html>

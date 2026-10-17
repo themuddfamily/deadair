@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEAD AIR — ui harness</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/ui.css">
+  <style>
+    /* harness chrome — not part of the game */
+    #dev-panel {
+      position: fixed; right: 0; top: 0; bottom: 0; width: 250px; z-index: 1000; overflow-y: auto;
+      background: rgba(12, 14, 12, 0.94); border-left: 1px solid #333; padding: 8px; font: 11px/1.3 monospace;
+    }
+    #dev-panel h4 { margin: 10px 0 4px; color: #ffb347; font-size: 11px; letter-spacing: 0.1em; }
+    #dev-panel button { display: block; width: 100%; margin: 2px 0; text-align: left; font: 11px monospace; background: #1b1e1b; color: #ccc; border: 1px solid #333; cursor: pointer; padding: 3px 6px; }
+    #dev-panel button:hover { border-color: #ffb347; }
+    body.nopanel #dev-panel { display: none; }
+    body:not(.nopanel) #game { right: 250px; }
+  </style>
+</head>
+<body>
+  <div id="game">
+    <div id="stage">
+      <canvas id="view" width="480" height="270"></canvas>
+      <div id="hud"></div>
+      <div id="screens"></div>
+    </div>
+  </div>
+  <div id="dev-panel"></div>
+
+  <script src="../js/core.js"></script>
+  <script>
+  /* ---------------------------------------------------------------- stubs */
+  (function () {
+    'use strict';
+    const DA = window.DA;
+    const svgPlan = '<svg viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5">' +
+      '<rect x="20" y="20" width="520" height="250"/>' +
+      '<path d="M20 130 H540 M20 160 H540 M140 20 V130 M250 20 V130 M360 20 V130 M110 160 V270 M200 160 V270 M290 160 V270 M380 160 V270 M460 160 V270"/>' +
+      '<path d="M300 130 v-10 M320 130 v-10" stroke-dasharray="3 3"/>' +
+      '<rect x="440" y="30" width="90" height="90" stroke-dasharray="6 5" opacity=".55"/>' +
+      '<g font-size="11" letter-spacing="1" fill="currentColor" stroke="none">' +
+      '<text x="45" y="80">RADIO</text><text x="165" y="80">OFFICE</text><text x="275" y="80">KITCHEN</text><text x="375" y="80">EQUIPMENT</text>' +
+      '<text x="45" y="220">LOBBY</text><text x="130" y="220">STORAGE</text><text x="220" y="220">BATH</text><text x="305" y="220">WORKSHOP</text><text x="395" y="220">RECORDS</text><text x="475" y="220">STAIRS</text>' +
+      '<text x="230" y="150">HALL</text><text x="452" y="78" opacity=".6">(SOLID)</text></g>' +
+      '<path d="M30 290 h100 M30 285 v10 M80 287 v6 M130 285 v10"/><text x="140" y="294" font-size="10">5 M</text></svg>';
+    DA.content = {
+      speakers: {
+        woman: { name: 'UNKNOWN WOMAN', color: '#e8b9a0' },
+        dispatch: { name: 'COUNTY DISPATCH', color: '#9fc3e6' },
+        hollis: { name: 'HOLLIS', color: '#c9c09a' },
+        you: { name: 'YOU', color: '#d9dccf' },
+        you_calm: { name: 'STATION 14 (?)', color: '#a7d7c5' },
+        girl: { name: 'GIRL', color: '#e7c7e0' },
+        trucker: { name: 'TRUCKER', color: '#d8b27a' },
+        unknown: { name: '—', color: '#8a8f84' },
+      },
+      objectives: { obj_coffee: 'Make coffee', obj_radio_check: 'Perform a radio check', obj_weather: 'Check the weather instruments' },
+      items: {
+        mug: { name: 'Mug of coffee', desc: 'Station-issue, chipped at the rim. Still warm.' },
+        flashlight: { name: 'Flashlight', desc: 'Heavy aluminium, four D cells. The beam yellows when it gets tired.' },
+        key_records: { name: 'Records room key', desc: 'Brass. Paper tag in faded pencil: RECORDS — DO NOT REMOVE.' },
+        tape_1954: { name: 'Cassette — 1954', desc: 'A reel transfer onto cassette. Someone wrote the year twice.' },
+      },
+      notes: {
+        note_1: { title: 'Note behind the kitchen vent', where: 'Kitchen vent', text: "They told me the night is eleven hours long.\nI have counted fourteen.\n\nDON'T TRUST THE VERSION OF YOU WHO KNOWS TOO MUCH.\n\nThe coffee machine is fine. The coffee machine is **always** fine." },
+        note_2: { title: 'Scrap in the bathroom duct', where: 'Bathroom vent', text: 'If the mirror is late, you are early.' },
+        note_3: { title: 'Index card, typed', where: 'Workshop vent', text: '> 04:47 — antenna three\n\nNot yet.' },
+      },
+      tapes: {
+        tape_1954: { label: 'LONGWAVE 7', year: 1954, desc: 'Reel transfer. Two men counting in unison, then only one.' },
+        tape_1887: { label: '???', year: 1887, desc: 'The label is older than the cassette.' },
+        tape_name: { label: '{NAME_UP}', year: 1961, desc: 'Your name, in a hand you almost recognise.' },
+        tape_op_loop: { label: 'FOR THE NEXT ONE', year: 1994, desc: "An operator's voice, tired, close to the microphone." },
+      },
+      endings: { destroy: { title: 'Destroy the antenna' }, maintain: { title: 'Maintain the loop' }, open: { title: 'Open the channel' }, secret: { title: 'Without observation' } },
+      docs: {
+        doc_hollis_note: { title: "Hollis's note", style: 'paper', body: "Coffee filters are in the cupboard above the sink, not the drawer.\n\nBreaker C trips if you look at it wrong. Workshop, grey panel.\n\nLog **everything** on 148.32. Don't answer it.\n\n— H.\n\nP.S. If the phone rings, let it ring." },
+        doc_procedures: { title: 'Operating procedures — night shift', style: 'typed', body: "# NIGHT SHIFT OPERATING PROCEDURES\n\n**1. Radio checks.** Perform a radio check with County Dispatch (155.34 MHz) at the start of every shift. Record the reply in the traffic log.\n\n**2. Reserved frequencies.** 148.32 MHz is reserved. Traffic received on a reserved frequency is to be logged and not answered.\n\n> Operators will not transmit on, or in reply to, a reserved frequency under any circumstances.\n\n**3. Weather.** Read the mast instruments hourly between 0300 and 0600.\n\n---\n\n**4. Relief.** A relief operator must sign the shift register on arrival. The outgoing operator will brief the relief on: the generator, the equipment rack, the breaker panel, the emergency transmitter and the backup antenna.\n\n**5. The steel door** behind rack row C is ||not part of this facility|| and is not to be opened.\n\n**6. Records.** The records room is closed to shift personnel. Requests for archived material are made in writing to the District Office.\n\nFailure to observe these procedures is grounds for immediate dismissal.\n\nD.O. 14/78 — rev. 1996" },
+        doc_shift_form: { title: 'Shift report', style: 'form', formNo: 'FORM RS-14/7', body: "OPERATOR: {NAME_UP}\nDATE: 26/27 OCT 1999\nSHIFT: 2300–0700\nRELIEVED: D. HOLLIS\n\n# DUTIES COMPLETED\n[x] Radio check with County Dispatch\n[x] Weather instruments read (mast)\n[ ] Breaker panel inspected\n[x] Traffic log up to date\n\n# REMARKS\nTRAFFIC: CB 19 trucker, flat tyre, Rt 9 mile 22. Relayed to County.\nUNUSUAL: None.\n\nSIGNATURE: {NAME}" },
+        doc_blueprint: { title: 'Ground floor plan', style: 'blueprint', formNo: 'RS14-A-02', body: '# RELAY STATION 14 — GROUND FLOOR\n\n' + svgPlan + '\n\nALL WALLS 200 MM CMU UNLESS NOTED. EQUIPMENT ROOM: SOLID FILL BEHIND RACK ROW C.' },
+        doc_newspaper_2049: { title: 'Station stands empty fifty years on', style: 'newspaper', masthead: 'The County Record', date: 'WEDNESDAY, 27 OCTOBER 2049', body: "## Fifty years after the night the relay went quiet, nobody can say who turned it off\n\nThe relay station on County Route 9 has not transmitted in half a century. The road that led to it was never repaved; the forest has taken the parking lot and most of the fence.\n\nLocal residents still describe the night of 27 October 1999 as the night of the long dark. Several of them recall that the sun did not come up until well after nine.\n\n\"My father worked the county desk,\" said one woman, who asked not to be named. \"He said the station called in all night. He said it called in after it was empty.\"\n\nThe state has no record of the facility's closure. A spokesman for the District Office said the building \"was never, to our knowledge, in service.\"\n\nThe night operator on duty that October was never located. His car is still in the lot." },
+        doc_plaque: { title: 'Lobby plaque', style: 'plaque', body: '# RELAY STATION 14\n\nEMERGENCY COMMUNICATIONS RELAY\n\n---\n\nCOMMISSIONED 1978\n\nIN THE SERVICE OF THOSE WHO CALL IN THE DARK' },
+        doc_report: { title: 'LONGWAVE — final report', style: 'screen', body: "# PROJECT LONGWAVE — FINAL REPORT\n\nFILE 14/59/C  ·  CLASSIFICATION: NONE ASSIGNED\n\nSignals propagated through the formation were received **before** they were sent. Initial offsets: 0.3 ms. After construction of the array: seconds, then minutes.\n\n> KEEP THE CHANNEL OPEN.\n\nThe antenna does not generate the effect. It amplifies something already present beneath the site, broadcasting long before any of us.\n\n---\n\nRecommendation: do not switch it off." },
+      },
+    };
+    DA.audio = {
+      calls: [],
+      init() { this.calls.push(['init']); },
+      ambience(p) { this.calls.push(['ambience', p]); },
+      play(n, o) { this.calls.push(['play', n, o]); return { stop() {} }; },
+      voice(t, s, o) { this.calls.push(['voice', t, s, o]); return { dur: DA.util.lineDur(t), stop() {} }; },
+    };
+    DA.radio = { insertTape(id) { DA.audio.calls.push(['insertTape', id]); } };
+  })();
+  </script>
+  <script>
+    // ?real → replace the stub content with the game's real js/content.js (data only)
+    if (/[?&]real\b/.test(location.search)) { window.__stubContent = window.DA.content; delete window.DA.content; document.write('<script src="../js/content.js"><\/script>'); }
+  </script>
+  <script src="../js/ui.js"></script>
+  <script>
+  /* --------------------------------------------------------- harness boot */
+  (function () {
+    'use strict';
+    const DA = window.DA;
+    const q = new URLSearchParams(location.search);
+    if (q.has('nopanel')) document.body.classList.add('nopanel');
+
+    function fitStage() {
+      const panel = document.body.classList.contains('nopanel') ? 0 : 250;
+      const w = window.innerWidth - panel, h = window.innerHeight;
+      let sw = w, sh = (w * 9) / 16;
+      if (sh > h) { sh = h; sw = (h * 16) / 9; }
+      document.documentElement.style.setProperty('--stage-w', Math.floor(sw) + 'px');
+      document.documentElement.style.setProperty('--stage-h', Math.floor(sh) + 'px');
+    }
+    window.addEventListener('resize', fitStage);
+
+    /** A static stand-in for the raycaster: a dim corridor under fluorescent light. */
+    function paintWorld() {
+      const c = document.getElementById('view'), g = c.getContext('2d');
+      const W = 480, H = 270;
+      g.fillStyle = '#0b0d0b'; g.fillRect(0, 0, W, H);
+      const ceil = g.createLinearGradient(0, 0, 0, H / 2); ceil.addColorStop(0, '#171a17'); ceil.addColorStop(1, '#0a0b0a');
+      g.fillStyle = ceil; g.fillRect(0, 0, W, H / 2);
+      const floor = g.createLinearGradient(0, H / 2, 0, H); floor.addColorStop(0, '#0d0f0d'); floor.addColorStop(1, '#23251f');
+      g.fillStyle = floor; g.fillRect(0, H / 2, W, H / 2);
+      // corridor walls in perspective
+      g.fillStyle = '#2a2f28';
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(190, 95); g.lineTo(190, 170); g.lineTo(0, H); g.fill();
+      g.fillStyle = '#262b24';
+      g.beginPath(); g.moveTo(W, 0); g.lineTo(290, 95); g.lineTo(290, 170); g.lineTo(W, H); g.fill();
+      g.fillStyle = '#121411'; g.fillRect(190, 95, 100, 75);
+      // door on the left wall
+      g.fillStyle = '#3a3226'; g.beginPath(); g.moveTo(70, 70); g.lineTo(120, 88); g.lineTo(120, 182); g.lineTo(70, 206); g.fill();
+      // fluorescent strips
+      g.fillStyle = 'rgba(220,235,215,0.9)'; g.fillRect(225, 60, 30, 4); g.fillRect(232, 84, 16, 2);
+      const glow = g.createRadialGradient(240, 62, 2, 240, 62, 120); glow.addColorStop(0, 'rgba(190,215,190,0.25)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = glow; g.fillRect(0, 0, W, H);
+      // grain
+      const img = g.getImageData(0, 0, W, H), d = img.data;
+      for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 14; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+      g.putImageData(img, 0, 0);
+    }
+
+    /** Minimal explore mode so body[data-mode=explore] and its keys work. */
+    DA.bus.on('boot', () => {
+      DA.modes.register('explore', {
+        lock: true,
+        onKey(e, down) {
+          if (!down) return false;
+          if (e.code === 'KeyT') { DA.ui.toggleWatch(); return true; }
+          if (e.code === 'Tab') { DA.ui.journal(); return true; }
+          if (e.code === 'Escape') { DA.modes.push('pause'); return true; }
+          return false;
+        },
+      });
+    });
+
+    /* ------------------------------------------------ fixtures & scenarios */
+    const H = (window.H = {});
+    H.fakeLog = () => {
+      DA.state.radio = DA.state.radio || {};
+      DA.state.radio.offsetUnit = true;
+      DA.state.radio.log = [
+        { num: 1, txId: 'tx_radio_check_reply', freq: 155.34, sender: 'COUNTY DISPATCH', summary: 'Radio check — loud and clear', stamp: '26 OCT 1999 – 23:58', received: '26 OCT 1999 – 23:58', offset: 0, status: 'LOGGED', logged: true },
+        { num: 2, txId: 'tx_trucker_flat', freq: 27.18, sender: 'CB 19 — TRUCKER', summary: 'Flat tyre, Rt 9 mile 22, needs a tow', stamp: '27 OCT 1999 – 00:31', received: '27 OCT 1999 – 00:31', offset: 0, status: 'LOGGED', logged: true },
+        { num: 3, txId: 'tx_police_chatter', freq: 155.47, sender: 'SHERIFF — UNIT 4', summary: 'Routine traffic stop, Harlan Rd', stamp: '27 OCT 1999 – 01:12', received: '27 OCT 1999 – 01:12', offset: 0, status: 'UNLOGGED', logged: false },
+        { num: 4, txId: 'tx_woman', freq: 148.32, sender: 'UNIDENTIFIED — FEMALE', summary: 'NO TRANSMISSION', stamp: '28 OCT 1999 – 02:13', received: '27 OCT 1999 – 02:13', offset: 86400, status: 'LOGGED', logged: true, glitch: true },
+        { num: 5, txId: 'tx_bridge', freq: 27.18, sender: 'CB 19 — UNKNOWN', summary: 'Jackknifed truck into minivan, Harlan Creek bridge', stamp: '27 OCT 1999 – 03:40', received: '27 OCT 1999 – 03:20', offset: 1200, status: 'RESOLVED', logged: true },
+        { num: 6, txId: 'tx_three_years', freq: 121.5, sender: 'AVIATION — N4471Q', summary: 'Mayday, icing, descending through 6000', stamp: '19 OCT 2002 – 17:05', received: '27 OCT 1999 – 03:51', offset: 3 * 365 * 86400 - 8 * 86400 + 13 * 3600, status: 'UNLOGGED', logged: false },
+      ];
+      DA.state.radio.nextNum = 7;
+    };
+    H.inject41 = () => {
+      DA.state.radio.log.push({ num: 41, txId: 'tx_41', freq: '---.--', sender: 'STATION 14', summary: 'I CAN HEAR YOU READING THIS.', stamp: 'NULL', received: 'NULL', offset: 'NULL', status: '', glitch: true });
+      DA.bus.emit('radio:log-changed', { num: 41 });
+    };
+    H.newGame = () => {
+      DA.newGame('Adam Kerr');
+      DA.modes.push('explore');
+      DA.input.locked = true;
+      H.fakeLog();
+      DA.state.notes = ['note_1', 'note_2', 'note_3'];
+      DA.state.tapes = ['tape_1954', 'tape_1887', 'tape_name', 'tape_op_loop'];
+      DA.state.inventory = ['mug', 'flashlight', 'key_records', 'tape_1954'];
+      DA.clock.min = DA.clock.toMin(27, 2, 13);
+    };
+    H.objectives = () => {
+      DA.ui.objective('obj_coffee');
+      DA.ui.objective('obj_radio_check');
+      DA.ui.objective('obj_weather');
+      DA.ui.objective('obj_trucker', 'Answer the trucker on CB 19');
+      DA.ui.objective('obj_generator', 'DO NOT INVESTIGATE BACKUP GENERATOR.', { glitch: true });
+    };
+    H.subsAll = () => {
+      DA.ui.say('hollis', 'Frequency 148.32 is reserved. If you hear anything on it, just log it.');
+      DA.ui.subtitle('Hello? Is anybody there? I think I hit a deer.', { speaker: 'woman', kind: 'radio', clarity: 0.62 });
+      DA.ui.subtitle('chair scraping', { kind: 'sfx' });
+    };
+    H.subsAll2 = () => {
+      DA.ui.subtitle("Don't turn around.", { speaker: 'unknown', kind: 'phone' });
+      DA.ui.think('That was the same voice. That was mine.');
+      DA.ui.subtitle('TRANSMISSION 19 LOGGED', { kind: 'system' });
+    };
+
+    const panel = document.getElementById('dev-panel');
+    const B = (group, label, fn) => {
+      if (group) panel.appendChild(Object.assign(document.createElement('h4'), { textContent: group }));
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.onclick = () => { try { fn(); } catch (e) { console.error(e); } };
+      panel.appendChild(b);
+    };
+    B('SCREENS', 'title', () => { DA.modes.clear(); DA.running = false; DA.modes.push('title'); });
+    B(null, 'name (register)', () => DA.modes.push('name'));
+    B(null, 'new game → explore', H.newGame);
+    B(null, 'pause', () => DA.ui.pause());
+    B(null, 'settings', () => DA.ui.settings());
+    B('HUD', 'objectives ×5 (1 glitch)', H.objectives);
+    B(null, 'complete obj_coffee', () => DA.ui.objectiveDone('obj_coffee'));
+    B(null, 'remove obj_weather', () => DA.ui.objectiveRemove('obj_weather'));
+    B(null, 'update obj_generator → LISTEN.', () => DA.ui.objective('obj_generator', 'LISTEN.', { glitch: true }));
+    B(null, 'subtitles: speech/radio/sfx', H.subsAll);
+    B(null, 'subtitles: phone/thought/system', H.subsAll2);
+    B(null, 'prompt "Use radio desk"', () => DA.ui.prompt('Use radio desk'));
+    B(null, 'prompt off', () => DA.ui.prompt(null));
+    B(null, 'hint', () => DA.ui.hint('Press T to check your watch.', 5));
+    B(null, 'toast', () => DA.ui.toast('Archiving current state'));
+    B(null, 'card THE LONG NIGHT', () => DA.ui.card('THE LONG NIGHT', '27 OCT 1999 — 02:31', 6));
+    B(null, 'toggle watch', () => DA.ui.toggleWatch());
+    B(null, 'showWatch(4)', () => DA.ui.showWatch(4));
+    B(null, 'fade to black 1s', () => DA.ui.fade(1, 1));
+    B(null, 'fade in 1s', () => DA.ui.fade(0, 1));
+    B(null, 'pointer lock off (look hint)', () => { DA.input.locked = false; });
+    B('DOCS', 'paper (content id)', () => DA.ui.doc('doc_hollis_note'));
+    B(null, 'typed', () => DA.ui.doc('doc_procedures'));
+    B(null, 'form', () => DA.ui.doc('doc_shift_form'));
+    B(null, 'blueprint', () => DA.ui.doc('doc_blueprint'));
+    B(null, 'newspaper', () => DA.ui.doc('doc_newspaper_2049'));
+    B(null, 'plaque', () => DA.ui.doc('doc_plaque'));
+    B(null, 'screen', () => DA.ui.doc('doc_report'));
+    B(null, 'note_1 (notes fallback)', () => DA.ui.doc('note_1'));
+    B('CHOICE', 'choice + timeout 12s', () => DA.ui.choice([
+      { id: 'open', text: 'Open it.' }, { id: 'ignore', text: 'Ignore her.' }, { id: 'question', text: 'Who is your dad?' },
+      { id: 'off', text: '[Turn off the receiver]' }, { id: 'respond', text: 'I hear you. Where are you?' },
+    ], { speaker: 'girl', prompt: 'Transmission 19', timeout: 12, timeoutId: 'ignore' }).then((id) => console.log('choice →', id)));
+    B(null, 'choice (no timeout)', () => DA.ui.choice([{ id: 'why', text: 'Why?' }, { id: 'ok', text: 'Okay.' }]).then((id) => console.log('choice →', id)));
+    B('JOURNAL', 'journal objectives', () => DA.ui.journal('objectives'));
+    B(null, 'journal log', () => DA.ui.journal('log'));
+    B(null, 'inject #41', H.inject41);
+    B(null, 'journal notes', () => DA.ui.journal('notes'));
+    B(null, 'journal tapes', () => DA.ui.journal('tapes'));
+    B(null, 'journal items', () => DA.ui.journal('items'));
+
+    window.addEventListener('load', () => {
+      fitStage();
+      paintWorld();
+      DA.boot();
+      if (!q.has('noscreen')) DA.modes.push('title');
+    });
+  })();
+  </script>
+</body>
+</html>

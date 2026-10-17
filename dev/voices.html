@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEAD AIR — Voices A/B</title>
+  <style>
+    :root {
+      --bg: #0b0c0b; --panel: #141614; --panel-hi: #1b1e1b; --edge: #2c302b; --ink: #d8dccf; --dim: #7f857a;
+      --amber: #ffb347; --amber-dim: #6d4a1d; --green: #7dff9a; --red: #ff5a4a;
+      --mono: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Courier New', monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 var(--mono); }
+    body { padding: 14px 16px 60px; background: radial-gradient(ellipse at 20% -10%, rgba(255,179,71,0.06), transparent 50%), var(--bg); }
+    h1 { font-size: 15px; letter-spacing: 0.22em; margin: 0; color: var(--amber); font-weight: 600; }
+    .top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px;
+      background: linear-gradient(#191c19, #111311); border: 1px solid var(--edge); border-radius: 3px; }
+    .lamp { width: 10px; height: 10px; border-radius: 50%; background: #3a2a18; }
+    .lamp.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .status { color: var(--dim); min-width: 200px; }
+    button, select, input { font: inherit; color: var(--ink); }
+    .btn { background: linear-gradient(#232723, #191b19); border: 1px solid #3a3f38; padding: 4px 10px; cursor: pointer; border-radius: 2px; }
+    .btn:hover { border-color: var(--amber); color: var(--amber); }
+    .btn.primary { border-color: var(--amber-dim); color: var(--amber); }
+    .btn.playing { border-color: var(--green); color: var(--green); }
+    select { background: #0d0f0d; border: 1px solid #353a33; border-radius: 2px; padding: 3px 5px; }
+    input[type=range] { accent-color: var(--amber); vertical-align: middle; }
+    .hint { color: var(--dim); font-size: 12px; }
+    .intro { max-width: 1100px; margin: 0 0 14px; color: var(--dim); }
+    .intro b { color: var(--ink); font-weight: 600; }
+    .grid { display: grid; grid-template-columns: minmax(260px, 1.1fr) repeat(3, minmax(220px, 1fr)); gap: 0; border: 1px solid var(--edge); border-radius: 3px; overflow: hidden; }
+    .hdr { background: var(--panel-hi); padding: 7px 10px; color: var(--amber); letter-spacing: 0.18em; font-size: 11px; border-bottom: 1px solid var(--edge); }
+    .cell { padding: 8px 10px; border-bottom: 1px solid #1f231f; background: var(--panel); min-width: 0; }
+    .cell + .cell { border-left: 1px solid #1f231f; }
+    .cell.row-alt { background: #171a17; }
+    .spk { font-weight: 600; letter-spacing: 0.12em; font-size: 11px; }
+    .txt { margin: 3px 0 6px; color: var(--ink); }
+    .ctl { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--dim); }
+    .ctl output { color: var(--amber); width: 2.6em; display: inline-block; }
+    .play { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; }
+    canvas.spec { display: block; width: 100%; height: 70px; background: #070807; border: 1px solid #222622; border-radius: 2px; cursor: zoom-in; }
+    .meta { font-size: 11px; color: var(--dim); margin-top: 3px; min-height: 1.4em; overflow-wrap: anywhere; }
+    .sys { display: flex; align-items: center; justify-content: center; height: 70px; border: 1px dashed #2a2e29; border-radius: 2px; color: var(--dim); font-size: 11px; text-align: center; padding: 4px; }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.82); display: none; align-items: center; justify-content: center; z-index: 20; }
+    .modal.on { display: flex; }
+    .modal .box { background: var(--panel); border: 1px solid var(--edge); padding: 12px; width: min(1300px, 96vw); }
+    .modal canvas { width: 100%; height: 360px; display: block; background: #070807; }
+    .modal .cap { margin-bottom: 8px; color: var(--amber); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>DEAD AIR // VOICES A/B</h1>
+    <span class="lamp" id="lamp"></span>
+    <span class="status" id="status">click INIT (or anywhere) to start audio</span>
+    <button class="btn primary" id="init">INIT</button>
+    <label class="hint">volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8"></label>
+    <button class="btn" id="stop">STOP ALL</button>
+    <span class="hint">|</span>
+    <label class="hint">arrival drive, car radio in the rain:</label>
+    <select id="drive-style"><option value="natural">natural</option><option value="classic">classic</option><option value="system">system speech</option></select>
+    <select id="drive-band"><option value="AM">AM 1340 (as on the dial)</option><option value="FM">FM</option></select>
+    <button class="btn primary" id="drive">▶ PLAY THE DJ</button>
+    <span class="hint">|</span>
+    <label class="hint"><input type="checkbox" id="blind"> blind (hide which is which)</label>
+  </div>
+  <p class="intro">
+    Every test line in every voice style, through any device. <b>Natural</b> is the new engine (a person, heard through its
+    1999 device), <b>Classic</b> the original formant babble, <b>System speech</b> your browser's own speech engine reading the
+    words (live only; the page shows which installed voice each speaker gets). Spectrograms are rendered offline from the real
+    engine (60 Hz – 5 kHz, log frequency); click one to enlarge. The game uses the style chosen under
+    <b>Settings → Voices</b> (DA.settings.voiceStyle).
+  </p>
+  <div class="grid" id="grid">
+    <div class="hdr">LINE · CHANNEL</div><div class="hdr" data-col="0">NATURAL</div><div class="hdr" data-col="1">CLASSIC</div><div class="hdr" data-col="2">SYSTEM SPEECH</div>
+  </div>
+  <div class="legend hint" id="legend"></div>
+  <div class="modal" id="modal"><div class="box"><div class="cap" id="mcap"></div><canvas id="mcanvas" width="2400" height="720"></canvas><div class="hint" style="margin-top:6px">click to close · cyan grid: 100 / 200 / 500 Hz / 1 / 2 / 4 kHz</div></div></div>
+
+  <script src="../js/core.js"></script>
+  <script src="../js/content.js"></script>
+  <script src="../js/audio.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const A = DA.audio;
+    const $ = (id) => document.getElementById(id);
+    const el = (tag, props, ...kids) => { const e = document.createElement(tag); Object.assign(e, props || {}); for (const k of kids) if (k != null) e.append(k); return e; };
+    const STYLES = ['natural', 'classic', 'system'];
+    const LINES = [
+      ['dj', "...that's the weather. Flash flood watch through Thursday, folks.", { radio: true, clarity: 0.8, vol: 0.6, carRadio: true, band: 'AM' }],
+      ['dj', "If you're out on Route 9 tonight, take it slow. It's coming down sideways up there.", { radio: true, clarity: 0.8, vol: 0.6, carRadio: true, band: 'AM' }],
+      ['dj', "Eleven thirty-one. Here's one for the night shift.", { radio: true, clarity: 0.8, vol: 0.6, carRadio: true, band: 'AM' }],
+      ['dispatch', 'Station Fourteen, County. Loud and clear.', { radio: true, clarity: 0.9, squelch: true }],
+      ['woman', "Please, I— I hit a deer, the car rolled, I'm upside down in a ditch.", { radio: true, clarity: 0.8, squelch: true }],
+      ['girl', 'My dad told me somebody would be listening.', { radio: true, clarity: 0.85 }],
+      ['child', 'Is anybody there? Is this the police?', { radio: true, clarity: 0.8 }],
+      ['trucker', 'Breaker one-nine. This is Coldwater, northbound on 9.', { radio: true, clarity: 0.8 }],
+      ['weather', 'Sunrise at six forty-two a.m.', { radio: true, clarity: 0.9 }],
+      ['you_calm', 'Station Fourteen, listen carefully.', { radio: true, clarity: 0.9 }],
+      ['you_panic', "Don't listen to him. He isn't you anymore.", { radio: true, clarity: 0.85 }],
+      ['you_injured', "Fourteen. Can you— hear me. It's inside the station.", { radio: true, clarity: 0.75, squelch: true }],
+      ['you_old', 'They listen to the tapes. Then they make sure those people arrive.', { radio: true, clarity: 0.8 }],
+      ['you', 'Station Fourteen, radio check. How do you read?', { vol: 0.9 }],
+      ['phone', "It's me. Don't hang up. Just listen for a second.", { phone: true }],
+      ['hollis', "Frequency 148.32 is reserved. If you hear anything on it, just log it. Don't respond.", {}],
+      ['replacement', 'Hi. Sorry. Are you the night operator?', {}],
+      ['researcher_a', 'Tape four. October the ninth. The signal came back at two eleven.', { tape: true }],
+      ['keep_open', 'KEEP THE CHANNEL OPEN.', { radio: true, clarity: 0.7 }],
+    ];
+    const CHANNELS = [
+      ['game', 'as in the game'], ['room', 'in person'], ['vhf', 'two-way radio (VHF)'], ['am', 'car radio AM'], ['fm', 'car radio FM'],
+      ['cb', 'CB 27 MHz'], ['noaa', 'NOAA weather radio'], ['phone', 'telephone'], ['tape', 'cassette'],
+    ];
+    function optsFor(row) {
+      const c = +row.clar.value, base = row.line[2];
+      switch (row.chan.value) {
+        case 'room': return { vol: base.vol };
+        case 'vhf': return { radio: true, clarity: c, channel: 'vhf', squelch: true };
+        case 'am': return { radio: true, clarity: c, carRadio: true, band: 'AM', vol: 0.6 };
+        case 'fm': return { radio: true, clarity: c, carRadio: true, band: 'FM', vol: 0.6 };
+        case 'cb': return { radio: true, clarity: c, channel: 'cb' };
+        case 'noaa': return { radio: true, clarity: c, channel: 'noaa' };
+        case 'phone': return { phone: true };
+        case 'tape': return { tape: true };
+        default: return Object.assign({}, base, base.radio ? { clarity: c } : {});
+      }
+    }
+
+    /* ---------------------------------------------------------------- audio start */
+    function init() {
+      if (!A.init()) return false;
+      $('lamp').classList.add('on');
+      const nv = A._internal && A._internal.nvWorkerState ? A._internal.nvWorkerState() : null;
+      $('status').textContent = 'audio running · ' + A.ctx.sampleRate + ' Hz · render worker ' + (nv && nv.ready ? 'ready' : nv && nv.fail ? 'unavailable (main thread)' : 'warming…');
+      A.setVolume(+$('vol').value);
+      return true;
+    }
+    $('init').onclick = init;
+    document.addEventListener('pointerdown', () => { if (!A.ready) init(); }, true);
+    $('vol').oninput = () => A.setVolume(+$('vol').value);
+    $('stop').onclick = () => { A.stopAll(0.05); document.querySelectorAll('.btn.playing').forEach((b) => b.classList.remove('playing')); };
+    setInterval(() => { if (A.ready) init(); }, 1500);
+
+    function playVoice(line, style, opts, btn) {
+      if (!A.ready && !init()) return null;
+      const h = A.voice(line[1], line[0], Object.assign({}, opts, { style }));
+      if (btn) {
+        btn.classList.add('playing');
+        const off = () => btn.classList.remove('playing');
+        if (h && h.ended) h.ended.then(off, off); else setTimeout(off, (h ? h.dur : 2) * 1000);
+      }
+      return h;
+    }
+
+    /* ---------------------------------------------------------------- spectrograms */
+    function fft(re, im) {
+      const n = re.length;
+      for (let i = 1, j = 0; i < n; i++) {
+        let bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+      }
+      for (let len = 2; len <= n; len <<= 1) {
+        const ang = (-2 * Math.PI) / len, wr = Math.cos(ang), wi = Math.sin(ang);
+        for (let i = 0; i < n; i += len) {
+          let cr = 1, ci = 0;
+          for (let k = 0; k < len / 2; k++) {
+            const a = i + k, b = a + len / 2;
+            const tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
+            re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+            const ncr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = ncr;
+          }
+        }
+      }
+    }
+    const MAGMA = [[0, 0, 4], [28, 16, 68], [79, 18, 123], [129, 37, 129], [181, 54, 122], [229, 80, 100], [251, 135, 97], [254, 194, 135], [252, 253, 191]];
+    function cmap(x) {
+      x = Math.max(0, Math.min(1, x)) * (MAGMA.length - 1);
+      const i = Math.min(MAGMA.length - 2, Math.floor(x)), f = x - i, a = MAGMA[i], b = MAGMA[i + 1];
+      return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+    }
+    /** STFT magnitude (dB) of a mono buffer → {frames, bins, sr, n, hop}. */
+    function stft(x, sr) {
+      const n = 1024, hop = Math.max(64, Math.round(sr * 0.006));
+      const win = new Float32Array(n); for (let i = 0; i < n; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1));
+      const frames = [];
+      const re = new Float64Array(n), im = new Float64Array(n);
+      for (let s = 0; s + n <= x.length; s += hop) {
+        for (let i = 0; i < n; i++) { re[i] = x[s + i] * win[i]; im[i] = 0; }
+        fft(re, im);
+        const m = new Float32Array(n / 2);
+        for (let k = 0; k < n / 2; k++) m[k] = 10 * Math.log10(re[k] * re[k] + im[k] * im[k] + 1e-12);
+        frames.push(m);
+      }
+      return { frames, sr, n, hop };
+    }
+    function drawSpec(canvas, S, grid) {
+      const g = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+      g.fillStyle = '#070807'; g.fillRect(0, 0, W, H);
+      if (!S || !S.frames.length) return;
+      let mx = -300;
+      for (const f of S.frames) for (let k = 0; k < f.length; k++) if (f[k] > mx) mx = f[k];
+      const lo = Math.log(60), hi = Math.log(5000), img = g.createImageData(W, H);
+      for (let y = 0; y < H; y++) {
+        const hz = Math.exp(hi - ((hi - lo) * y) / (H - 1));
+        const kf = (hz * S.n) / S.sr, k0 = Math.floor(kf), kfr = kf - k0;
+        for (let xx = 0; xx < W; xx++) {
+          const f = S.frames[Math.min(S.frames.length - 1, Math.floor((xx / W) * S.frames.length))];
+          const v = f[k0] * (1 - kfr) + (f[k0 + 1] == null ? f[k0] : f[k0 + 1]) * kfr;
+          const c = cmap((v - (mx - 70)) / 70), o = (y * W + xx) * 4;
+          img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+        }
+      }
+      g.putImageData(img, 0, 0);
+      if (grid) {
+        g.strokeStyle = 'rgba(125,220,255,0.25)'; g.fillStyle = 'rgba(125,220,255,0.7)'; g.font = Math.round(H / 26) + 'px monospace';
+        for (const hz of [100, 200, 500, 1000, 2000, 4000]) {
+          const y = ((hi - Math.log(hz)) / (hi - lo)) * (H - 1);
+          g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke();
+          g.fillText(hz >= 1000 ? hz / 1000 + 'k' : String(hz), 4, y - 3);
+        }
+      }
+    }
+    const mono = (b) => { const n = b.length, out = new Float32Array(n); for (let c = 0; c < b.numberOfChannels; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) out[i] += d[i] / b.numberOfChannels; } return out; };
+
+    /* ---------------------------------------------------------------- rows */
+    const rows = [];
+    const queue = [];
+    let busy = false;
+    function pump() {
+      if (busy || !queue.length) return;
+      busy = true;
+      const job = queue.shift();
+      job().catch((e) => console.warn(e)).then(() => { busy = false; setTimeout(pump, 0); });
+    }
+    function schedule(row) {
+      row.gen = (row.gen || 0) + 1;
+      const gen = row.gen;
+      for (let ci = 0; ci < 2; ci++) {
+        const cell = row.cells[ci];
+        cell.meta.textContent = 'rendering…';
+        queue.push(async () => {
+          if (gen !== row.gen) return;
+          const style = STYLES[ci], o = optsFor(row), t0 = performance.now();
+          const r = await A.renderVoice(row.line[1], row.line[0], Object.assign({}, o, { style }), { sampleRate: 44100 });
+          if (!r || gen !== row.gen) return;
+          const S = stft(mono(r.buffer), r.buffer.sampleRate);
+          cell.S = S;
+          drawSpec(cell.canvas, S, false);
+          cell.meta.textContent = (style === 'natural' ? channelName(row.line, o) + ' · ' : '') + 'peak ' + r.peak.toFixed(2) + ' · line ' + DA.util.lineDur(row.line[1]).toFixed(2) + ' s, sound until ' + (r.lastSound || 0).toFixed(2) + ' s · ' + Math.round(performance.now() - t0) + ' ms';
+        });
+      }
+      pump();
+    }
+    function channelName(line, o) {
+      try { const r = A._internal.nvMain().channelFor(line[0], Object.assign({ speaker: line[0] }, o), A.voiceParams(line[0])); return r + (r === 'broadcast' ? ' ' + (o.band || 'AM') : ''); } catch (e) { return ''; }
+    }
+    function systemInfo(line) {
+      const v = A.systemVoiceFor ? A.systemVoiceFor(line[0]) : null;
+      return v ? 'speechSynthesis: ' + v : 'no speechSynthesis voice installed — plays as natural';
+    }
+    function buildRows() {
+      const grid = $('grid');
+      LINES.forEach((line, i) => {
+        const sp = (DA.content.speakers || {})[line[0]] || { name: line[0], color: '#ccc' };
+        const row = { line, cells: [] };
+        row.chan = el('select');
+        for (const [v, t] of CHANNELS) row.chan.append(el('option', { value: v, textContent: t }));
+        row.clar = el('input', { type: 'range', min: 0.2, max: 1, step: 0.05, value: line[2].clarity != null ? line[2].clarity : 0.85 });
+        const co = el('output', { textContent: (+row.clar.value).toFixed(2) });
+        row.clar.oninput = () => { co.textContent = (+row.clar.value).toFixed(2); };
+        row.clar.onchange = () => schedule(row);
+        row.chan.onchange = () => schedule(row);
+        const abc = el('button', { className: 'btn', textContent: '▶ A · B · C', title: 'natural, classic, system in turn' });
+        abc.onclick = async () => {
+          for (let ci = 0; ci < 3; ci++) {
+            const h = playVoice(line, STYLES[ci], optsFor(row), row.cells[ci].btn);
+            await new Promise((r) => setTimeout(r, ((h ? h.dur : 2) + 0.9) * 1000));
+          }
+        };
+        const c0 = el('div', { className: 'cell' },
+          el('div', { className: 'spk', style: 'color:' + (sp.color || '#ccc'), textContent: (sp.name || line[0]) + '  ·  ' + line[0] }),
+          el('div', { className: 'txt', textContent: line[1] }),
+          el('div', { className: 'ctl' }, row.chan, 'clarity', row.clar, co, abc));
+        const rowEls = [c0];
+        STYLES.forEach((style, ci) => {
+          const cell = {};
+          cell.btn = el('button', { className: 'btn', textContent: '▶ ' + style.toUpperCase() });
+          cell.btn.onclick = () => playVoice(line, style, optsFor(row), cell.btn);
+          cell.label = el('span', { className: 'hint' });
+          cell.meta = el('div', { className: 'meta' });
+          let view;
+          if (ci < 2) {
+            cell.canvas = el('canvas', { className: 'spec', width: 520, height: 110 });
+            cell.canvas.onclick = () => zoom(line, style, cell.S);
+            view = cell.canvas;
+          } else {
+            view = el('div', { className: 'sys', textContent: 'live only — speechSynthesis cannot be rendered offline' });
+            cell.meta.textContent = systemInfo(line);
+          }
+          rowEls.push(el('div', { className: 'cell' }, el('div', { className: 'play' }, cell.btn, cell.label), view, cell.meta));
+          row.cells.push(cell);
+        });
+        if (i % 2) rowEls.forEach((e) => e.classList.add('row-alt'));
+        rowEls.forEach((e) => grid.append(e));
+        rows.push(row);
+      });
+      rows.forEach(schedule);
+    }
+    function zoom(line, style, S) {
+      if (!S) return;
+      $('mcap').textContent = style.toUpperCase() + ' · ' + line[0] + ' · “' + line[1] + '”';
+      $('modal').classList.add('on');
+      drawSpec($('mcanvas'), S, true);
+    }
+    $('modal').onclick = () => $('modal').classList.remove('on');
+
+    /* ---------------------------------------------------------------- blind mode */
+    $('blind').onchange = () => {
+      const on = $('blind').checked;
+      document.querySelectorAll('.hdr[data-col]').forEach((h) => { h.textContent = on ? 'VOICE ' + 'ABC'[+h.dataset.col] : STYLES[+h.dataset.col].replace('system', 'system speech').toUpperCase(); });
+      rows.forEach((row) => row.cells.forEach((c, ci) => { c.btn.textContent = '▶ ' + (on ? 'ABC'[ci] : STYLES[ci].toUpperCase()); }));
+    };
+
+    /* ---------------------------------------------------------------- the arrival drive */
+    let driveRun = 0;
+    $('drive').onclick = async () => {
+      if (!A.ready && !init()) return;
+      const run = ++driveRun, style = $('drive-style').value, band = $('drive-band').value;
+      A.stopAll(0.05);
+      A.radioStatic(0);
+      const rain = A.loop('rain_car', { vol: 0.5 });
+      $('drive').classList.add('playing');
+      for (const line of LINES.slice(0, 3)) {
+        if (run !== driveRun) break;
+        const h = A.voice(line[1], 'dj', { radio: true, clarity: 0.8, vol: 0.6, carRadio: true, band, style });
+        await new Promise((r) => setTimeout(r, (h.dur + 0.5) * 1000));
+      }
+      setTimeout(() => { if (rain && rain.stop) rain.stop(1.5); }, 800);
+      $('drive').classList.remove('playing');
+    };
+
+    $('legend').textContent = 'Natural engine: rendered in a worker in the game (voice() < 1 ms on the main thread). Channels: VHF two-way radio · CB · NOAA · car radio AM/FM (music bed, static, door speaker) · telephone · cassette · in person (room). Classic ignores the device choice beyond radio / phone / tape.';
+    buildRows();
+  })();
+  </script>
+</body>
+</html>

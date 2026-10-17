@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DEAD AIR — content browser</title>
+<link rel="stylesheet" href="../css/base.css">
+<style>
+  /* dev harness only — prefix ct- */
+  html, body { overflow: auto; height: auto; user-select: text; }
+  body { background: #07080a; color: #d8dccf; font-family: var(--font-ui); font-size: 13px; }
+  .ct-wrap { max-width: 1180px; margin: 0 auto; padding: 16px 20px 60px; }
+  .ct-nav { position: sticky; top: 0; background: #07080a; padding: 8px 0; border-bottom: 1px solid #222; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+  .ct-nav a { color: #ffb347; text-decoration: none; border: 1px solid #333; padding: 2px 8px; }
+  .ct-nav a.ct-on { background: #ffb347; color: #111; }
+  h2.ct-h { color: #ffb347; font-weight: 600; letter-spacing: 0.08em; margin: 26px 0 10px; font-size: 14px; }
+  .ct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .ct-spk { background: #0d0f0e; border: 1px solid #1d201d; padding: 8px 10px; }
+  .ct-spk b { letter-spacing: 0.06em; }
+  .ct-spk small { color: #8a8f84; display: block; margin-top: 3px; }
+  .ct-sub { background: rgba(0,0,0,0.72); display: inline-block; padding: 4px 10px; margin: 2px 0; font-size: 15px; }
+  .ct-sub .ct-lab { font-weight: 600; margin-right: 8px; letter-spacing: 0.06em; }
+  .ct-cap { color: #9a9f94; font-style: italic; }
+  .ct-tx { border: 1px solid #1d201d; background: #0b0c0b; padding: 10px 12px; margin: 10px 0; }
+  .ct-tx header { color: #ffb347; font-family: var(--font-lcd); font-size: 20px; }
+  .ct-tx header span { color: #8a8f84; font-family: var(--font-ui); font-size: 12px; margin-left: 10px; }
+  .ct-node { margin: 6px 0 6px 10px; border-left: 2px solid #2a2d2a; padding-left: 10px; }
+  .ct-node > i { color: #7dff9a; font-style: normal; font-size: 11px; }
+  .ct-opt { color: #ffb347; margin: 2px 0; }
+  .ct-opt em { color: #8a8f84; font-style: normal; }
+  /* documents */
+  .ct-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: 14px; }
+  .ct-doc { padding: 22px 26px; line-height: 1.5; box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+  .ct-doc h1 { font-size: 18px; margin: 0 0 10px; letter-spacing: 0.04em; }
+  .ct-doc p { margin: 0 0 9px; }
+  .ct-doc blockquote { margin: 0 0 9px; padding-left: 10px; border-left: 2px solid currentColor; opacity: 0.8; }
+  .ct-doc svg { width: 100%; height: auto; display: block; margin: 6px 0 10px; }
+  .ct-paper, .ct-form { background: #e9e2cf; color: #2a241a; font-family: var(--font-type); }
+  .ct-typed { background: #efeadb; color: #1e1a14; font-family: 'Courier New', monospace; font-size: 12.5px; }
+  .ct-blueprint { background: #173a66; color: #d7e7ff; font-family: 'Courier New', monospace;
+    background-image: linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: 16px 16px; }
+  .ct-newspaper { background: #ddd6c3; color: #1b1914; font-family: Georgia, serif; }
+  .ct-newspaper h1 { font-size: 28px; text-align: center; border-bottom: 3px double #1b1914; }
+  .ct-plaque { background: linear-gradient(#8c7440, #5e4c28); color: #f6e7b8; text-align: center; font-family: Georgia, serif; border: 4px ridge #b89b5a; }
+  .ct-note { background: #efe7cf; color: #2b2418; font-family: var(--font-type); padding: 16px 18px; white-space: pre-wrap; line-height: 1.45; }
+  .ct-field { display: flex; gap: 8px; margin: 3px 0; font-size: 12px; }
+  .ct-field b { min-width: 250px; }
+  #ct-map { background: #0c100c; border: 1px solid #253025; display: block; }
+  .ct-legend { color: #8a8f84; margin-top: 6px; }
+  .ct-ok { color: #7dff9a; } .ct-bad { color: #ff3b2f; }
+  pre.ct-pre { white-space: pre-wrap; color: #bfc4b8; }
+</style>
+</head>
+<body>
+<div class="ct-wrap">
+  <nav class="ct-nav" id="ct-nav"></nav>
+  <div id="ct-out"></div>
+</div>
+<script src="../js/core.js"></script>
+<script src="../js/content.js"></script>
+<script>
+(function () {
+  'use strict';
+  const DA = window.DA;
+  DA.boot();
+  DA.state.playerName = 'ADAM';
+  const C = DA.content;
+  const E = DA.util.esc;
+  const fmt = (t) => DA.fmt(t, { N19: 'nineteen', DEATH_ROOM: 'radio room', DEATH_STAMP: '27 OCT 1999 – 04:12', DEATH_LINE: 'footsteps, closer' });
+  const out = document.getElementById('ct-out');
+  const sections = ['check', 'speakers', 'map', 'docs', 'tx', 'notes', 'tapes', 'dialogue', 'endings', 'misc'];
+
+  function sub(st) {
+    if (st.s) {
+      const sp = C.speaker(st.s);
+      const cap = st.cap ? ` <span class="ct-cap">${E(st.cap)}</span>` : '';
+      return `<div class="ct-sub"><span class="ct-lab" style="color:${sp.color}">${E(sp.name)}</span><span style="color:${sp.color}">${E(fmt(st.t))}</span>${cap}</div>`;
+    }
+    if (st.cap) return `<div class="ct-cap">${E(fmt(st.cap))}${st.sfx ? ' · sfx ' + E(st.sfx) : ''}</div>`;
+    if (st.wait != null) return `<div class="ct-cap">(wait ${st.wait}s)</div>`;
+    if (st.goto) return `<div class="ct-cap">→ goto ${E(st.goto)}</div>`;
+    if (st.emit) return `<div class="ct-cap">emit ${E(st.emit)}</div>`;
+    if (st.end) return `<div class="ct-cap">■ end</div>`;
+    if (st.choose) return st.choose.map((o) => `<div class="ct-opt">[${E(o.id)}] ${E(o.t)} <em>${o.next ? '→ ' + o.next : ''}${o.silent ? ' · silent' : ''}${o.action ? ' · action ' + o.action : ''}</em></div>`).join('') + `<div class="ct-cap">timeout ${st.timeout}s → ${E(st.onTimeout || '')}</div>`;
+    return `<div class="ct-cap">${E(JSON.stringify(st))}</div>`;
+  }
+
+  /** Minimal version of the doc markup the ui module renders (#, **, >, blank-line paragraphs). */
+  function markup(body) {
+    return fmt(body).split(/\n\s*\n/).map((p) => {
+      p = p.trim();
+      if (/^<svg/.test(p)) return p;
+      const inline = (s) => E(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+      if (p.startsWith('# ')) return `<h1>${inline(p.slice(2))}</h1>`;
+      if (p.startsWith('> ')) return `<blockquote>${inline(p.slice(2))}</blockquote>`;
+      return `<p>${inline(p)}</p>`;
+    }).join('');
+  }
+
+  const R = {};
+  R.check = () => {
+    const miss = [];
+    const want = { tx: 44, outgoing: 8, roomfeed: 8, notes: 10, tapes: 9, docs: 10 };
+    for (const k in want) if (Object.keys(C[k]).length < want[k]) miss.push(k);
+    return `<h2 class="ct-h">CHECK</h2><pre class="ct-pre">content loaded: <span class="ct-ok">yes</span>
+sections: ${Object.keys(C).join(', ')}
+counts: ${Object.entries(want).map(([k]) => k + ' ' + Object.keys(C[k]).length).join(' · ')} · fragments ${C.fragments.length}
+total words: ${C.wordCount()}
+${miss.length ? '<span class="ct-bad">short: ' + miss.join(', ') + '</span>' : '<span class="ct-ok">all sections populated</span>'}</pre>`;
+  };
+  R.speakers = () => {
+    const sample = { woman: 'Is it still raining where you are?', dispatch: "There's nothing there.", girl: '{NAME}?', you_calm: 'Open the basement ventilation duct.', you_panic: "Don't listen to him. He isn't you anymore.", you_old: 'The fourth one is you.', keep_open: 'KEEP THE CHANNEL OPEN.', hollis: 'Old military frequency or something.' };
+    return `<h2 class="ct-h">SPEAKERS (${Object.keys(C.speakers).length})</h2><div class="ct-grid">` + Object.entries(C.speakers).map(([id, sp]) => {
+      const vv = sp.voice;
+      return `<div class="ct-spk"><div class="ct-sub"><span class="ct-lab" style="color:${sp.color}">${E(sp.name)}</span><span style="color:${sp.color}">${E(fmt(sample[id] || 'Station Fourteen, go ahead.'))}</span></div><small>${id} · ${sp.color} · pitch ${vv.pitch} rate ${vv.rate} formant ${vv.formant} breathy ${vv.breathy} ${vv.gender} age ${vv.age} rasp ${vv.rasp}</small></div>`;
+    }).join('') + '</div>';
+  };
+  R.map = () => `<h2 class="ct-h">COUNTY MAP (maplocs, 0..1)</h2><canvas id="ct-map" width="760" height="760"></canvas><div class="ct-legend">roads amber · water blue · border dashed · markers green · rays = transmission bearings from Station 14</div>`;
+  R.docs = () => `<h2 class="ct-h">DOCUMENTS</h2><div class="ct-docs">` + Object.entries(C.docs).map(([id, d]) => {
+    const fields = d.fields ? d.fields.map((f) => `<div class="ct-field"><b>${E(f.label)}</b><span>${f.options ? E(f.options.join(' / ')) : E(fmt(f.value || f.placeholder || ''))}${f.answer ? ' <i>(' + E(f.answer) + ')</i>' : ''}</span></div>`).join('') : '';
+    return `<div><div class="ct-cap">${id} · ${d.style}</div><div class="ct-doc ct-${d.style}" id="ct-${id}">${markup(d.body)}${fields}</div></div>`;
+  }).join('') + '</div>';
+  R.tx = () => `<h2 class="ct-h">TRANSMISSIONS (${Object.keys(C.tx).length})</h2>` + Object.values(C.tx).map((t) => {
+    const st = C.stampFor(t, DA.clock.toMin(27, 3, 0));
+    const off = st ? DA.util.fmtOffset(st.offsetSec) : '';
+    const nodes = Object.entries(t.script).map(([n, steps]) => `<div class="ct-node"><i>${n}</i>${steps.map(sub).join('')}</div>`).join('');
+    const hail = t.hail ? `<div class="ct-node"><i>hail</i>${t.hail.map(sub).join('')}</div>` : '';
+    return `<div class="ct-tx"><header>${t.freq.toFixed(2).padStart(6, '0')} ${E(t.id)}<span>${E(t.sender)} · ${E(fmt(t.summary))} · bearing ${t.bearing == null ? 'omni' : t.bearing + '°'} · str ${t.strength} · ${t.future ? 'FUTURE' : 'present'} · stamp ${E(st ? fmt(st.text) : '—')} · OFFSET ${off}</span></header>${hail}${nodes}</div>`;
+  }).join('');
+  R.notes = () => `<h2 class="ct-h">VENT NOTES</h2><div class="ct-docs">` + Object.entries(C.notes).map(([id, n]) => `<div><div class="ct-cap">${id} · ${n.where} · ${n.author} · ${n.date}</div><div class="ct-note"><b>${E(n.title)}</b>\n\n${E(fmt(n.text))}</div></div>`).join('') + '</div>';
+  R.tapes = () => `<h2 class="ct-h">TAPES</h2>` + Object.entries(C.tapes).map(([id, tp]) => `<div class="ct-tx"><header>${E(fmt(tp.label))}<span>${id} · ${tp.year} · ${E(tp.stamp)} · ${tp.lines.length} lines</span></header><div class="ct-cap">${E(tp.desc)}</div><div class="ct-node">${tp.lines.map(sub).join('')}</div></div>`).join('');
+  R.dialogue = () => `<h2 class="ct-h">DIALOGUE (${Object.keys(C.dialogue).length})</h2>` + Object.entries(C.dialogue).map(([id, arr]) => `<div class="ct-node"><i>${id}</i>${arr.map(sub).join('')}</div>`).join('');
+  R.endings = () => {
+    const e = C.endings;
+    return `<h2 class="ct-h">ENDINGS</h2><pre class="ct-pre">${E(JSON.stringify({ destroy: e.destroy, maintain: e.maintain, open: e.open, secret: e.secret }, null, 2))}</pre><div class="ct-node"><i>post_secret</i>${e.post_secret.map(sub).join('')}</div><pre class="ct-pre">${E(e.credits.text)}</pre><div class="ct-node"><i>death</i>${sub({ s: C.death.callSpeaker, t: C.death.call })}${sub({ s: C.death.answerSpeaker, t: C.death.answer })}</div>` +
+      `<h2 class="ct-h">FRAGMENTS (${C.fragments.length})</h2>` + C.fragments.map(sub).join('<br>');
+  };
+  R.misc = () => `<h2 class="ct-h">OBJECTIVES / ITEMS / ROOM FEEDS / OUTGOING</h2><pre class="ct-pre">${E(JSON.stringify({ objectives: C.objectives, items: C.items, outgoing: C.outgoing, roomfeed: C.roomfeed, looks: C.looks, cards: C.cards, hints: C.hints }, null, 2))}</pre>`;
+
+  function drawMap() {
+    const cv = document.getElementById('ct-map');
+    if (!cv) return;
+    const g = cv.getContext('2d'), S = cv.width, P = 20, K = S - P * 2;
+    const X = (p) => P + p[0] * K, Y = (p) => P + p[1] * K;
+    g.fillStyle = '#0c100c'; g.fillRect(0, 0, S, S);
+    // contour texture
+    g.strokeStyle = 'rgba(125,255,154,0.07)';
+    for (let i = 0; i < 14; i++) { g.beginPath(); g.ellipse(S * 0.26, S * 0.24, 30 + i * 22, 20 + i * 15, 0.4, 0, Math.PI * 2); g.stroke(); }
+    const style = { road: ['#ffb347', 2.4, []], water: ['#5da9e9', 1.6, []], border: ['#b0b0b0', 1.2, [6, 5]], bridge: ['#ffffff', 5, []] };
+    for (const kind of ['border', 'water', 'road', 'bridge']) for (const [id, m] of Object.entries(C.maplocs)) {
+      if (m.kind !== kind) continue;
+      const [col, w, dash] = style[kind];
+      g.strokeStyle = col; g.lineWidth = w; g.setLineDash(dash); g.beginPath();
+      m.pts.forEach((p, i) => (i ? g.lineTo(X(p), Y(p)) : g.moveTo(X(p), Y(p)))); g.stroke(); g.setLineDash([]);
+      const mid = m.pts[Math.floor(m.pts.length / 2)];
+      g.fillStyle = col; g.font = '11px monospace'; g.fillText(m.label || m.name, X(mid) + 5, Y(mid) - 5);
+    }
+    for (const [id, m] of Object.entries(C.maplocs)) {
+      if (m.kind !== 'marker' && m.kind !== 'place') continue;
+      const p = m.pts[0];
+      g.fillStyle = m.kind === 'marker' ? '#7dff9a' : '#ffffff';
+      g.beginPath(); g.arc(X(p), Y(p), m.kind === 'marker' ? 3.5 : 5, 0, Math.PI * 2); g.fill();
+      g.font = m.kind === 'place' ? 'bold 12px monospace' : '10px monospace';
+      g.fillText(m.label, X(p) + 6, Y(p) + 12);
+    }
+    const st = C.maplocs.station_14.pts[0];
+    for (const id of ['tx_woman', 'tx_bridge', 'tx_child_fire', 'tx_trucker_flat', 'tx_truck_breakdown', 'tx_ambulance']) {
+      const b = (C.tx[id].bearing * Math.PI) / 180;
+      g.strokeStyle = 'rgba(255,59,47,0.55)'; g.lineWidth = 1; g.beginPath();
+      g.moveTo(X(st), Y(st)); g.lineTo(X(st) + Math.sin(b) * K * 0.5, Y(st) - Math.cos(b) * K * 0.5); g.stroke();
+      g.fillStyle = 'rgba(255,120,100,0.9)'; g.font = '10px monospace';
+      g.fillText(id.replace('tx_', ''), X(st) + Math.sin(b) * K * 0.46, Y(st) - Math.cos(b) * K * 0.46);
+    }
+  }
+
+  function show() {
+    const h = (location.hash || '#all').slice(1);
+    const list = h === 'all' ? sections : [h];
+    out.innerHTML = list.map((s) => (R[s] ? R[s]() : '')).join('');
+    document.querySelectorAll('.ct-nav a').forEach((a) => a.classList.toggle('ct-on', a.getAttribute('href') === '#' + h));
+    drawMap();
+    document.title = 'content:' + h;
+  }
+  document.getElementById('ct-nav').innerHTML = ['all'].concat(sections).map((s) => `<a href="#${s}">${s}</a>`).join('');
+  window.addEventListener('hashchange', show);
+  show();
+})();
+</script>
+</body>
+</html>

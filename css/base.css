@@ -1,0 +1,110 @@
+/* DEAD AIR — base.css: page frame, 16:9 stage, shared tokens. Module CSS lives in ui/radio/devices/scenes.css */
+/* Offline fallbacks: VT323 / Special Elite come from Google Fonts. Without the network the local
+ * monospace stand-in is ~11% wider and clips fixed-width readouts (frequency / OFFSET LCDs), so the
+ * fallback faces are size-adjusted to the web fonts' advance widths (VT323 0.40em, Special Elite ~0.56em,
+ * local monospace 0.60em). */
+@font-face {
+  font-family: 'DA LCD Fallback';
+  src: local('Liberation Mono'), local('Courier New'), local('Nimbus Mono PS'), local('DejaVu Sans Mono'), local('Menlo'), local('Consolas');
+  size-adjust: 67%;
+}
+@font-face {
+  font-family: 'DA Type Fallback';
+  src: local('Courier New'), local('Liberation Mono'), local('Nimbus Mono PS'), local('Courier'), local('DejaVu Sans Mono');
+  size-adjust: 93%;
+}
+:root {
+  --bg: #050605;
+  --ink: #d8dccf;          /* default UI text */
+  --ink-dim: #8a8f84;
+  --amber: #ffb347;        /* radio LCD / warm readouts */
+  --amber-dim: #7a4f1c;
+  --green: #7dff9a;        /* phosphor / CCTV / terminals */
+  --green-dim: #1f5a2c;
+  --red: #ff3b2f;          /* alarms, glitch objectives */
+  --paper: #e9e2cf;        /* notes, documents */
+  --paper-ink: #2a241a;
+  --font-ui: 'IBM Plex Mono', 'Courier New', monospace;
+  --font-lcd: 'VT323', 'DA LCD Fallback', 'Courier New', monospace;
+  --font-hand: 'Reenie Beanie', 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive; /* handwritten notes */
+  --font-type: 'Special Elite', 'DA Type Fallback', 'Courier New', monospace;
+  /* stage geometry (set by main.js): the 16:9 box every overlay positions against */
+  --stage-w: 100vw;
+  --stage-h: 56.25vw;
+  --u: calc(var(--stage-h) / 100); /* 1u = 1% of stage height — use for all UI sizing */
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+body.mouselook { cursor: none; }
+
+#game {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+#stage {
+  position: relative;
+  width: var(--stage-w);
+  height: var(--stage-h);
+  overflow: hidden;
+  background: #000;
+  font-size: calc(var(--u) * 2.6);
+}
+#view {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+}
+#hud, #screens {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+#screens > * { pointer-events: auto; }
+#screens { z-index: 20; }  /* modal screens: radio desk, CCTV, menus, scenes */
+#hud { z-index: 30; }      /* above screens so subtitles show at the desk; ui.css hides the rest by body[data-mode] */
+/* layer above everything: fades (ui.js creates #fade at z 40) */
+
+.hidden { display: none !important; }
+.noscript { color: var(--ink); padding: 2em; }
+
+/* generic button used across modules */
+.da-btn {
+  font-family: var(--font-ui);
+  font-size: 1em;
+  color: var(--ink);
+  background: rgba(20, 22, 20, 0.85);
+  border: 1px solid #4a4f46;
+  padding: 0.35em 0.9em;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+}
+.da-btn:hover, .da-btn:focus-visible { border-color: var(--amber); color: var(--amber); outline: none; }
+.da-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* shared glitch text (objectives, log rewrites) */
+@keyframes da-jitter {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-1px, 1px); }
+  40% { transform: translate(1px, -1px); }
+  60% { transform: translate(-1px, 0); }
+  80% { transform: translate(1px, 1px); }
+}
+.glitch { color: var(--red); animation: da-jitter 0.18s steps(2) infinite; text-shadow: 1px 0 rgba(0, 255, 255, 0.35), -1px 0 rgba(255, 0, 0, 0.45); }

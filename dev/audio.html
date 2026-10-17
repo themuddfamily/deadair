@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEAD AIR — Audio Bench</title>
+  <style>
+    :root {
+      --au-bg: #0b0c0b;
+      --au-panel: #141614;
+      --au-panel-hi: #1b1e1b;
+      --au-edge: #2c302b;
+      --au-ink: #d8dccf;
+      --au-dim: #7f857a;
+      --au-amber: #ffb347;
+      --au-amber-dim: #6d4a1d;
+      --au-green: #7dff9a;
+      --au-red: #ff5a4a;
+      --au-mono: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Courier New', monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--au-bg); color: var(--au-ink); font: 13px/1.35 var(--au-mono); }
+    body { padding: 14px 16px 40px; background:
+      radial-gradient(ellipse at 20% -10%, rgba(255,179,71,0.06), transparent 50%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px), var(--au-bg); }
+    h1 { font-size: 15px; letter-spacing: 0.22em; margin: 0; color: var(--au-amber); font-weight: 600; }
+    h2 { font-size: 11px; letter-spacing: 0.2em; margin: 0 0 10px; color: var(--au-dim); font-weight: 600; text-transform: uppercase;
+      display: flex; align-items: center; gap: 8px; }
+    h2::before { content: ''; width: 6px; height: 6px; background: var(--au-amber-dim); box-shadow: 0 0 6px rgba(255,179,71,0.3); }
+    .au-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px;
+      background: linear-gradient(#191c19, #111311); border: 1px solid var(--au-edge); border-radius: 3px; }
+    .au-lamp { width: 10px; height: 10px; border-radius: 50%; background: #3a2a18; box-shadow: inset 0 0 2px #000; }
+    .au-lamp.on { background: var(--au-green); box-shadow: 0 0 8px var(--au-green); }
+    .au-lamp.sus { background: var(--au-amber); box-shadow: 0 0 8px var(--au-amber); }
+    .au-status { color: var(--au-dim); min-width: 220px; }
+    .au-grid { display: grid; grid-template-columns: 360px 1fr; gap: 12px; align-items: start; }
+    .au-col { display: flex; flex-direction: column; gap: 12px; }
+    .au-panel { background: var(--au-panel); border: 1px solid var(--au-edge); border-radius: 3px; padding: 12px 14px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 2px 10px rgba(0,0,0,0.4); }
+    .au-btn { font: inherit; color: var(--au-ink); background: linear-gradient(#232723, #191b19); border: 1px solid #3a3f38;
+      padding: 5px 10px; cursor: pointer; border-radius: 2px; letter-spacing: 0.03em; }
+    .au-btn:hover { border-color: var(--au-amber); color: var(--au-amber); }
+    .au-btn:active { transform: translateY(1px); }
+    .au-btn.primary { border-color: var(--au-amber-dim); color: var(--au-amber); }
+    .au-btn.looping { border-color: var(--au-green); color: var(--au-green); box-shadow: 0 0 8px rgba(125,255,154,0.25) inset; }
+    .au-btn.flash { border-color: var(--au-amber); background: #2b2217; }
+    .au-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; flex-wrap: wrap; }
+    .au-row label { color: var(--au-dim); }
+    .au-slider { display: grid; grid-template-columns: 78px 1fr 40px; align-items: center; gap: 8px; margin: 4px 0; }
+    .au-slider span:first-child { color: var(--au-dim); font-size: 12px; }
+    .au-slider output { color: var(--au-amber); text-align: right; font-size: 12px; }
+    input[type=range] { width: 100%; accent-color: var(--au-amber); }
+    select, textarea, input[type=text] { font: inherit; background: #0d0f0d; color: var(--au-ink); border: 1px solid #353a33; border-radius: 2px; padding: 4px 6px; }
+    textarea { width: 100%; resize: vertical; min-height: 54px; }
+    .au-check { display: inline-flex; align-items: center; gap: 4px; color: var(--au-dim); cursor: pointer; }
+    .au-check input { accent-color: var(--au-amber); }
+    .au-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 14px; }
+    .au-group h3 { font-size: 10px; letter-spacing: 0.18em; color: var(--au-amber-dim); margin: 0 0 6px; text-transform: uppercase; border-bottom: 1px solid #242824; padding-bottom: 3px; }
+    .au-group .au-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+    .au-group .au-btn { padding: 3px 7px; font-size: 12px; }
+    .au-hint { color: var(--au-dim); font-size: 11px; }
+    canvas { display: block; background: #070807; border: 1px solid #222622; border-radius: 2px; }
+    .au-scope { width: 360px; height: 58px; }
+    .au-pad { width: 180px; height: 180px; cursor: crosshair; }
+    .au-phase { position: relative; height: 16px; background: #0b0d0b; border: 1px solid #2a2e29; border-radius: 2px; overflow: hidden; }
+    .au-phase > div { position: absolute; top: 0; bottom: 0; }
+    .au-phase .in { left: 0; width: 40%; background: rgba(125,255,154,0.08); }
+    .au-phase .ex { left: 40%; width: 47%; background: rgba(255,179,71,0.08); }
+    .au-phase .needle { width: 2px; background: var(--au-amber); box-shadow: 0 0 6px var(--au-amber); }
+    .au-plan { width: 100%; height: 90px; }
+    .au-result { font-size: 12px; white-space: pre-wrap; color: var(--au-dim); max-height: 140px; overflow: auto; }
+    .au-ok { color: var(--au-green); }
+    .au-bad { color: var(--au-red); }
+    table.au-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .au-table th { text-align: left; color: var(--au-dim); font-weight: 600; letter-spacing: 0.08em; padding: 4px 6px; border-bottom: 1px solid var(--au-edge); position: sticky; top: 0; background: var(--au-panel); }
+    .au-table td { padding: 2px 6px; border-bottom: 1px solid #1c1f1c; vertical-align: middle; }
+    .au-table tr:hover td { background: #191c19; }
+    .au-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .au-meter { height: 6px; background: #0b0d0b; position: relative; width: 120px; border: 1px solid #252925; }
+    .au-meter i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #6d4a1d, var(--au-amber)); }
+    .au-meter b { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--au-green); }
+    .au-tablewrap { max-height: 520px; overflow: auto; }
+    .au-spec { width: 100%; height: 260px; }
+    .au-thumb { width: 180px; height: 30px; cursor: pointer; }
+    .au-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
+    .au-kv span:nth-child(odd) { color: var(--au-dim); }
+  </style>
+</head>
+<body>
+  <div class="au-top">
+    <h1>DEAD AIR // AUDIO BENCH</h1>
+    <span class="au-lamp" id="au-lamp"></span>
+    <span class="au-status" id="au-status">AudioContext not created — click INIT (or anywhere)</span>
+    <button class="au-btn primary" id="au-init">INIT</button>
+    <div class="au-slider" style="width:260px;margin:0"><span>MASTER</span><input type="range" id="au-vol" min="0" max="1" step="0.01" value="0.8"><output id="au-vol-o">0.80</output></div>
+    <button class="au-btn" id="au-pause">PAUSE</button>
+    <button class="au-btn" id="au-duck">DUCK 0.7/2s</button>
+    <button class="au-btn" id="au-silence">SILENCE 3s</button>
+    <button class="au-btn" id="au-stopall">STOP ALL</button>
+    <canvas class="au-scope" id="au-scope" width="720" height="116"></canvas>
+  </div>
+
+  <div class="au-grid">
+    <div class="au-col">
+      <div class="au-panel">
+        <h2>Ambience</h2>
+        <div class="au-row" id="au-presets"></div>
+        <div id="au-amb-sliders"></div>
+        <div class="au-row">
+          <label class="au-check"><input type="checkbox" id="au-indoor"> indoor</label>
+          <label class="au-check"><input type="checkbox" id="au-birds"> birds</label>
+          <label class="au-check"><input type="checkbox" id="au-daylight"> daylight</label>
+        </div>
+        <div class="au-row">
+          <label>generator</label>
+          <select id="au-gen"><option>off</option><option>on</option><option>stutter</option></select>
+          <label>room</label>
+          <select id="au-room"><option>small</option><option>hall</option><option>basement</option><option>array</option><option>outside</option><option>bathroom</option></select>
+        </div>
+      </div>
+
+      <div class="au-panel">
+        <h2>Radio static</h2>
+        <div id="au-static-sliders"></div>
+      </div>
+
+      <div class="au-panel">
+        <h2>Player breath · 000.00 mirror</h2>
+        <div id="au-breath-sliders"></div>
+        <div class="au-phase" id="au-phase"><div class="in"></div><div class="ex"></div><div class="needle" id="au-needle"></div></div>
+        <div class="au-row">
+          <label class="au-check"><input type="checkbox" id="au-mirror"> breath_other on the radio, phase-locked</label>
+        </div>
+        <div class="au-hint">Green = inhale, amber = exhale. The radio breathing matches yours.</div>
+      </div>
+
+      <div class="au-panel">
+        <h2>Positional</h2>
+        <div class="au-row" style="align-items:flex-start">
+          <canvas class="au-pad" id="au-pad" width="360" height="360"></canvas>
+          <div style="flex:1;min-width:0">
+            <label class="au-check"><input type="checkbox" id="au-pos"> use position</label>
+            <div class="au-kv" id="au-poskv" style="margin-top:6px"></div>
+            <div class="au-hint" style="margin-top:6px">Listener at centre facing up (north). Click to place the source; right-drag to turn. 1 grid = 2 cells.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="au-col">
+      <div class="au-panel">
+        <h2>Sound effects <span class="au-hint" style="letter-spacing:0">— click plays · shift-click toggles loop</span></h2>
+        <div class="au-row">
+          <label>surface</label>
+          <select id="au-surface"><option>lino</option><option>concrete</option><option>tile</option><option>carpet</option><option>gravel</option><option>metal</option><option>mud</option></select>
+          <label class="au-check"><input type="checkbox" id="au-run"> run</label>
+          <label class="au-check"><input type="checkbox" id="au-crouch"> crouch</label>
+          <label class="au-check"><input type="checkbox" id="au-sradio"> through radio</label>
+          <label class="au-check"><input type="checkbox" id="au-sphone"> phone</label>
+          <label class="au-check"><input type="checkbox" id="au-muffle"> muffled</label>
+          <label>vol</label><input type="range" id="au-svol" min="0" max="1.5" step="0.05" value="1" style="width:90px">
+          <label>rate</label><input type="range" id="au-srate" min="0.5" max="2" step="0.05" value="1" style="width:90px">
+        </div>
+        <div class="au-groups" id="au-groups"></div>
+      </div>
+
+      <div class="au-panel">
+        <h2>Voice</h2>
+        <div class="au-row" style="align-items:stretch">
+          <div style="flex:1;min-width:280px">
+            <textarea id="au-text">Hello? Is anybody there? Please... I hit a deer, and the car rolled into the ditch.</textarea>
+            <div class="au-row">
+              <label>speaker</label><select id="au-speaker"></select>
+              <label class="au-check"><input type="checkbox" id="au-vradio" checked> radio</label>
+              <label class="au-check"><input type="checkbox" id="au-vphone"> phone</label>
+              <label class="au-check"><input type="checkbox" id="au-vtape"> tape</label>
+              <label class="au-check"><input type="checkbox" id="au-vsquelch"> squelch</label>
+              <label class="au-check" title="DA.settings.tts: the legacy switch for the 'system' style"><input type="checkbox" id="au-tts"> TTS</label>
+              <label title="DA.settings.voiceStyle">style</label><select id="au-vstyle"><option value="natural">natural</option><option value="classic">classic</option><option value="system">system speech</option></select>
+              <a class="au-hint" href="voices.html">A/B page →</a>
+            </div>
+            <div class="au-slider"><span>clarity</span><input type="range" id="au-clarity" min="0" max="1" step="0.01" value="0.85"><output id="au-clarity-o">0.85</output></div>
+            <div class="au-row">
+              <button class="au-btn primary" id="au-speak">SPEAK</button>
+              <button class="au-btn" id="au-vstop">STOP</button>
+              <button class="au-btn" id="au-vrender">RENDER + SPECTROGRAM</button>
+              <select id="au-lines"></select>
+            </div>
+          </div>
+          <div style="width:260px" class="au-kv" id="au-vinfo"></div>
+        </div>
+        <canvas class="au-plan" id="au-plan" width="1400" height="180"></canvas>
+      </div>
+
+      <div class="au-panel">
+        <h2>Offline bench</h2>
+        <div class="au-row">
+          <button class="au-btn primary" id="au-renderall">RENDER EVERY SOUND</button>
+          <button class="au-btn" id="au-rendamb">RENDER AMBIENCE MIX</button>
+          <span class="au-hint" id="au-benchsum"></span>
+        </div>
+        <canvas class="au-spec" id="au-spec" width="1400" height="520"></canvas>
+        <div class="au-row"><span class="au-hint" id="au-speclabel">click a thumbnail to inspect</span></div>
+        <div class="au-tablewrap"><table class="au-table" id="au-table"><thead><tr><th>sound</th><th>dur</th><th>peak</th><th></th><th>RMS</th><th>tail</th><th>spectrogram</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="au-row" style="align-items:flex-start;gap:20px">
+          <div style="flex:1"><h2 style="margin-top:10px">Pre-init API check</h2><div class="au-result" id="au-preinit"></div></div>
+          <div style="flex:1"><h2 style="margin-top:10px">voice dur == lineDur</h2><div class="au-result" id="au-durcheck"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/core.js"></script>
+  <script src="../js/content.js" onerror="window.AU_NO_CONTENT = true"></script>
+  <script src="../js/audio.js"></script>
+  <script src="audio-harness.js"></script>
+  <script>
+    // voice style selector (DA.settings.voiceStyle; 'system' also sets the legacy tts flag)
+    (function () {
+      const sel = document.getElementById('au-vstyle'), tts = document.getElementById('au-tts');
+      if (!sel || !window.DA || !DA.audio) return;
+      const sync = () => { sel.value = DA.audio.voiceStyle ? DA.audio.voiceStyle() : 'classic'; if (tts) tts.checked = !!DA.settings.tts; };
+      sel.onchange = () => { DA.settings.voiceStyle = sel.value; DA.settings.tts = sel.value === 'system'; sync(); };
+      if (tts) tts.addEventListener('change', () => { if (!tts.checked && DA.settings.voiceStyle === 'system') DA.settings.voiceStyle = 'natural'; sync(); });
+      sync();
+    })();
+  </script>
+</body>
+</html>

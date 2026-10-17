@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEAD AIR</title>
+  <meta name="description" content="A first-person psychological horror game set in an isolated emergency radio relay station, 1999.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Reenie+Beanie&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/ui.css">
+  <link rel="stylesheet" href="css/radio.css">
+  <link rel="stylesheet" href="css/devices.css">
+  <link rel="stylesheet" href="css/scenes.css">
+  <link rel="stylesheet" href="css/minimap.css">
+</head>
+<body>
+  <div id="game">
+    <div id="stage">
+      <canvas id="view" width="480" height="270"></canvas>
+      <div id="hud"></div>
+      <div id="screens"></div>
+    </div>
+    <noscript><p class="noscript">DEAD AIR needs JavaScript.</p></noscript>
+  </div>
+
+  <!-- Load order matters: core first, main last. Classic scripts so the game runs from file:// too. -->
+  <script src="js/core.js"></script>
+  <script src="js/content.js"></script>
+  <script src="js/textures.js"></script>
+  <script src="js/raycaster.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/maps.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/radio.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/devices.js"></script>
+  <script src="js/scenes.js"></script>
+  <script src="js/entity.js"></script>
+  <script src="js/minimap.js"></script>
+  <script src="js/director.js"></script>
+  <script src="js/debug.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEAD AIR — devices harness</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/devices.css">
+  <style>
+    /* harness-only chrome (prefixed dvh-) */
+    #dvh-panel { position: fixed; left: 6px; top: 6px; z-index: 100; width: 250px; max-height: calc(100vh - 12px); overflow: auto;
+      background: rgba(10, 12, 10, 0.92); border: 1px solid #333; padding: 8px; font: 11px/1.3 monospace; color: #cfd3c8; }
+    #dvh-panel h4 { margin: 8px 0 3px; color: #ffb347; font-weight: normal; letter-spacing: .1em; }
+    #dvh-panel button { font: 11px monospace; margin: 1px; padding: 2px 5px; background: #1d201d; color: #d8dccf; border: 1px solid #444; cursor: pointer; }
+    #dvh-panel button:hover { border-color: #ffb347; }
+    #dvh-state { white-space: pre-wrap; color: #8a8f84; margin-top: 6px; }
+    body.dvh-shots #dvh-panel { display: none; }
+    #dvh-log { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); width: 70%; text-align: center; pointer-events: none;
+      font: calc(var(--u) * 2.2) var(--font-ui); color: #e9e6d8; text-shadow: 0 1px 3px #000; }
+    #dvh-log div { margin-top: .3em; }
+    #dvh-log .k-sfx { color: #9aa3a0; font-style: italic; }
+    #dvh-log .k-thought { color: #cfc6a8; font-style: italic; }
+    #dvh-log .k-toast { color: #ffb347; letter-spacing: .15em; }
+    #dvh-log .k-hint { color: #7dff9a; letter-spacing: .1em; }
+    .dvh-choice { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 18%; }
+    .dvh-choice div { font: calc(var(--u) * 2.4) var(--font-ui); background: rgba(0,0,0,.75); border: 1px solid #555; padding: .4em 1em; margin: 0 .5em; color: #ddd; }
+    #view { background: #1a1d1b; }
+  </style>
+</head>
+<body>
+  <div id="game">
+    <div id="stage">
+      <canvas id="view" width="480" height="270"></canvas>
+      <div id="hud"><div id="dvh-log"></div></div>
+      <div id="screens"></div>
+    </div>
+  </div>
+  <div id="dvh-panel"></div>
+
+  <script>window.__missing = []; window.__useRender = !/[?&]norender\b/.test(location.search);</script>
+  <script src="../js/core.js"></script>
+  <script src="../js/content.js" onerror="__missing.push('content')"></script>
+  <script>if (!__useRender) document.write('<!--')</script>
+  <script src="../js/textures.js" onerror="__missing.push('textures')"></script>
+  <script src="../js/raycaster.js" onerror="__missing.push('raycaster')"></script>
+  <!-- -->
+  <script src="../js/maps.js" onerror="__missing.push('maps')"></script>
+  <script src="../js/devices.js"></script>
+  <script>
+  /* ================================================================ stubs
+   * Everything below stands in for other modules so devices.js can be exercised alone.
+   * Only defined when the real module is absent. */
+  (function () {
+    'use strict';
+    const DA = window.DA;
+    const U = DA.util;
+    if (/[?&]shots\b/.test(location.search)) document.body.classList.add('dvh-shots');
+    const logEl = document.getElementById('dvh-log');
+    const log = (text, kind, dur) => {
+      const d = U.el('div', { class: 'k-' + (kind || 'speech') }, text);
+      logEl.appendChild(d);
+      while (logEl.children.length > 3) logEl.firstChild.remove();
+      setTimeout(() => d.remove(), (dur || 3) * 1000);
+      (window.__log = window.__log || []).push({ kind: kind || 'speech', text });
+    };
+
+    /* --- audio: record every call --- */
+    window.__snd = [];
+    if (!DA.audio) {
+      const handle = (name) => ({ stop() { __snd.push('stop:' + name); }, setVol() {}, setPos() {} });
+      DA.audio = {
+        play(name, opts) { __snd.push(name); return handle(name); },
+        loop(name, opts) { __snd.push('loop:' + name + (opts && opts.x != null ? '@' + opts.x.toFixed(1) + ',' + opts.y.toFixed(1) : '')); return handle(name); },
+      };
+    }
+    /* --- ui --- */
+    if (!DA.ui) {
+      DA.ui = {
+        subtitle(text, o) { log(text, (o && o.kind) || 'speech', (o && o.dur) || 3); return 1; },
+        think(text) { log(text, 'thought', 3); return Promise.resolve(); },
+        toast(text, dur) { log(text, 'toast', dur || 2.5); },
+        hint(text, dur) { log(text, 'hint', dur || 1.5); },
+        doc(d) { log('[doc] ' + (typeof d === 'string' ? d : d.title + ' — ' + String(d.body).slice(0, 60)), 'toast', 4); return Promise.resolve(); },
+        say(s, text) { log(text, 'speech', 3); return DA.wait(U.lineDur(text)); },
+        choice(options) {
+          return new Promise((res) => { DA.modes.push('choice', { options, res }); });
+        },
+      };
+    }
+    /* a stub 'choice' mode whose DOM sits BEFORE the device roots (like ui.js's would) */
+    const choiceRoot = U.el('div', { class: 'dvh-choice hidden' });
+    document.getElementById('screens').appendChild(choiceRoot);
+    DA.modes.register('choice', {
+      enter(arg) { this.arg = arg; choiceRoot.textContent = ''; arg.options.forEach((o, i) => choiceRoot.appendChild(U.el('div', null, (i + 1) + '. ' + o.text))); choiceRoot.classList.remove('hidden'); },
+      exit() { choiceRoot.classList.add('hidden'); },
+      onKey(e, down) {
+        const m = /^Digit(\d)$/.exec(e.code);
+        if (down && m) { const o = this.arg.options[+m[1] - 1]; if (o) { DA.modes.pop('choice'); this.arg.res(o.id); } return true; }
+        return false;
+      },
+    });
+    DA.modes.register('explore', { lock: false });
+    DA.modes.register('radio', { opaque: true });
+
+    /* --- interact --- */
+    if (!DA.interact) {
+      const H = {};
+      DA.interact = {
+        on(key, fn) { (H[key] = H[key] || []).push(fn); },
+        fire(t) {
+          DA.bus.emit('interact', { id: t.id, kind: t.kind, target: t });
+          for (const fn of H[t.id] || []) if (fn(t)) return true;
+          for (const fn of H[t.kind] || []) if (fn(t)) return true;
+          return false;
+        },
+        handlers: H,
+      };
+    }
+    /* --- entity --- */
+    if (!DA.entity) DA.entity = { predict(sec) { return window.__predict || null; } };
+
+    /* --- maps + world: a small fake station and basement --- */
+    const STATION = [
+      '##########################',
+      '#......#.......#.........#',
+      '#......#.......#.........#',
+      '#......#.......#.........#',
+      '#......#.......#.........#',
+      '#......#.......#.........#',
+      '###.#######.#######.######',
+      '#........................#',
+      '#........................#',
+      '####.####.#######.########',
+      '#......#......#..........#',
+      '#......#......#..........#',
+      '#......#......#..........#',
+      '#######################.##',
+      '#........................#',
+      '#........................#',
+      '##########################',
+    ];
+    const BASEMENT = [
+      '################',
+      '#..............#',
+      '#..............#',
+      '#..............#',
+      '#......##......#',
+      '#..............#',
+      '#..............#',
+      '################',
+    ];
+    const POINTS = {
+      pt_radio_chair: { map: 'station', x: 3.5, y: 2.2, angle: -90 },
+      pt_fig_1: { map: 'station', x: 7.6, y: 7.6, angle: 270 },
+      pt_fig_2: { map: 'station', x: 4.2, y: 7.1, angle: 225 },
+      pt_fig_3: { map: 'station', x: 3.8, y: 4.3, angle: 0 },
+      pt_fig_4: { map: 'station', x: 3.6, y: 3.0, angle: 0 },
+      pt_gen: { map: 'basement', x: 8, y: 3, angle: 0 },
+      cam_1: { map: 'station', x: 23, y: 15.3, angle: 180 },
+      cam_2: { map: 'station', x: 14.5, y: 7.3, angle: 180 },
+      cam_4: { map: 'station', x: 6.4, y: 5.4, angle: -135 },
+      cam_3: { map: 'basement', x: 14.4, y: 6.4, angle: -150 },
+    };
+    const deg = (d) => (d * Math.PI) / 180;
+    const powers = { main: true, corridor: true, generator: true };
+    const props = { limiter_1: { id: 'limiter_1', tex: 'spr_lever' } };
+    const doors = {};
+    window.__powerLog = [];
+    const texId = (n) => (DA.textures && DA.textures.id ? DA.textures.id(n) : 1);
+    const REAL = !!(DA.maps && DA.maps.defs && DA.maps.defs.station && DA.maps.defs.station.grid);
+    window.__realMaps = REAL;
+    function blank(id, w, h) {
+      const n = w * h;
+      return {
+        id, w, h, wall: new Uint16Array(n), wallN: new Uint16Array(n), wallE: new Uint16Array(n), wallS: new Uint16Array(n), wallW: new Uint16Array(n),
+        floor: new Uint16Array(n), ceil: new Uint16Array(n), solid: new Uint8Array(n), room: new Uint8Array(n), rooms: ['none'],
+        light: new Float32Array(n), door: new Int16Array(n).fill(-1), doors: [], emissive: 1, alt: new Map(), altFace: new Map(), tint: [1, 1, 1],
+        variant: 'normal', windowFigure: null, props: [], interact: [],
+      };
+    }
+    /** The fake fallback station (when js/maps.js is absent). */
+    function compile(id, rows) {
+      const m = blank(id, rows[0].length, rows.length);
+      for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+        const i = y * m.w + x, c = rows[y][x];
+        if (c === '#') { m.wall[i] = texId(id === 'basement' ? 'concrete_ext' : 'wall_paint'); m.solid[i] = 1; }
+        else { m.floor[i] = texId(id === 'basement' ? 'floor_concrete' : 'floor_lino'); m.ceil[i] = texId('ceil_tile'); m.light[i] = 0.8; }
+      }
+      return m;
+    }
+    /** A minimal stand-in for world.js's compiler: enough of PLAN §6.4 for renderView. */
+    function compileDef(def) {
+      const rows = def.grid, h = rows.length, w = Math.max(...rows.map((r) => r.length));
+      const m = blank(def.id, w, h), L = def.legend;
+      const at = (x, y) => (x < 0 || y < 0 || x >= w || y >= h ? null : L[rows[y][x]] || null);
+      const SIDES = [['n', 0, -1, 'wallN'], ['e', 1, 0, 'wallE'], ['s', 0, 1, 'wallS'], ['w', -1, 0, 'wallW']];
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        let c = at(x, y);
+        if (!c) continue;
+        if (c.door) for (const [, dx, dy] of SIDES) { const nb = at(x + dx, y + dy); if (nb && nb.floor) { c = nb; break; } }
+        if (c.wall && !c.door) {
+          m.wall[i] = texId(c.wall + (c.overlay ? '+' + c.overlay : ''));
+          m.solid[i] = 1;
+          for (const [, dx, dy, key] of SIDES) {
+            const nb = at(x + dx, y + dy);
+            if (!nb || nb.wall) continue;
+            if (nb.ceil === null && c.outside) m[key][i] = texId(c.outside + (c.overlay ? '+' + c.overlay : ''));
+            else if (c.inner && nb.walls) m[key][i] = texId(nb.walls + (c.overlay ? '+' + c.overlay : ''));
+          }
+        } else if (c.floor) {
+          m.floor[i] = texId(c.floor);
+          m.ceil[i] = c.ceil ? texId(c.ceil) : 0;
+          m.light[i] = c.light != null ? c.light : c.ceil ? 0.8 : 0.4;
+        }
+      }
+      const sideKey = { n: 'wallN', e: 'wallE', s: 'wallS', w: 'wallW' }, sideIdx = { n: 0, e: 1, s: 2, w: 3 };
+      for (const f of def.faces || []) if (f.x < w && f.y < h) m[sideKey[f.side]][f.y * w + f.x] = texId(f.tex);
+      for (const a of def.alt || []) {
+        const i = a.y * w + a.x;
+        if (a.side) m.altFace.set(i * 4 + sideIdx[a.side], texId(a.tex));
+        else m.alt.set(i, texId(a.tex));
+      }
+      m.props = (def.props || []).filter((p) => p.tex && !p.hidden).map((p) => Object.assign({}, p));
+      m.interact = def.interact || [];
+      return m;
+    }
+    const pts = {};
+    if (REAL) {
+      for (const id in DA.maps.defs) for (const k in DA.maps.defs[id].points || {}) pts[k] = Object.assign({ map: id }, DA.maps.defs[id].points[k]);
+    } else Object.assign(pts, POINTS);
+    const P = (k) => pts[k] || POINTS[k];
+    const start = P('pt_radio_chair');
+    if (!DA.world) {
+      DA.world = {
+        maps: {}, mapId: 'station',
+        get map() { return this.maps[this.mapId]; },
+        player: { x: start.x, y: start.y, angle: deg(start.angle), pitch: 0 },
+        camera() { return { x: this.player.x, y: this.player.y, angle: this.player.angle, pitch: 0, fov: 66, bob: 0 }; },
+        cameras() {
+          const L = { cam_1: 'FRONT ENTRANCE', cam_2: 'HALLWAY', cam_3: 'GENERATOR', cam_4: 'RADIO ROOM' };
+          return ['cam_1', 'cam_2', 'cam_3', 'cam_4'].map((id) => { const p = P(id); return { id, label: L[id], map: p.map, x: p.x, y: p.y, angle: deg(p.angle) }; });
+        },
+        point(name) { const p = pts[name] || POINTS[name]; return p ? Object.assign({}, p, { angle: deg(p.angle || 0) }) : null; },
+        history(sec) { return { player: window.__past || (REAL ? { x: 22.5, y: 15.5, angle: Math.PI, map: 'station' } : { x: 9.5, y: 7.6, angle: Math.PI, map: 'station' }), doors: {} }; },
+        power(c) { return powers[c] !== false; },
+        setPower(c, on) { powers[c] = on; __powerLog.push(c + '=' + on); },
+        lockDoor(id, b) { (doors[id] = doors[id] || {}).locked = b; },
+        openDoor(id) { (doors[id] = doors[id] || {}).open = true; },
+        isOpen(id) { return !!(doors[id] && doors[id].open); },
+        prop(id) { return props[id] || null; },
+        setPropTex(id, tex) { if (props[id]) props[id].tex = tex; },
+        _doors: doors, _props: props, _powers: powers,
+      };
+    }
+    if (!REAL) {
+      DA.maps = { defs: {
+        station: { interact: [
+          { id: 'phone', kind: 'phone', x: 12, y: 0, side: 's' },
+          { id: 'coffee_machine', kind: 'coffee', x: 20, y: 0, side: 's' },
+          { id: 'breaker_panel', kind: 'breaker', x: 10, y: 16, side: 'n' },
+          { id: 'tape_terminal', kind: 'terminal', x: 24, y: 10, side: 'w' },
+          { id: 'vent_office', kind: 'vent', x: 14, y: 0, side: 's', note: 'note_1' },
+          { id: 'vent_basement', kind: 'vent', x: 5, y: 6, side: 's', item: 'key_antenna', note: 'note_7' },
+        ] },
+      } };
+    }
+    DA.content = DA.content || {};
+
+    /* --- boot + a fresh night --- */
+    DA.bus.on('boot', () => {
+      if (!DA.world.maps.station) {
+        if (REAL) for (const id of ['station', 'basement']) DA.world.maps[id] = compileDef(DA.maps.defs[id]);
+        else { DA.world.maps.station = compile('station', STATION); DA.world.maps.basement = compile('basement', BASEMENT); }
+      }
+      if (DA.render && DA.render.init) try { DA.render.init(); } catch (e) { console.warn('render.init', e); }
+      if (DA.render && DA.render.addSpriteProvider) DA.render.addSpriteProvider((mapId) => {
+        const m = DA.world.maps[mapId];
+        return m ? m.props.map((p) => ({ x: p.x, y: p.y, tex: (props[p.id] && props[p.id].tex) || p.tex, scale: p.scale, z: p.z })) : [];
+      });
+    });
+    function fit() {
+      const w = innerWidth, h = innerHeight;
+      let sw = w, sh = (w * 9) / 16;
+      if (sh > h) { sh = h; sw = (h * 16) / 9; }
+      document.documentElement.style.setProperty('--stage-w', Math.floor(sw) + 'px');
+      document.documentElement.style.setProperty('--stage-h', Math.floor(sh) + 'px');
+    }
+    addEventListener('resize', fit);
+    fit();
+    DA.boot();
+    DA.newGame('Adam Reyes');
+    DA.state.clock.min = 24 * 60 + 2 * 60 + 41; // 02:41 on 27 OCT
+    DA.state.clock.rate = 0;
+    DA.state.world.weather = { rain: 0.85, thunder: 0.3 };
+    DA.modes.push('explore');
+    window.__ready = true;
+
+    /* --- controls --- */
+    const panel = document.getElementById('dvh-panel');
+    const stateEl = U.el('div', { id: 'dvh-state' });
+    const sec = (t) => panel.appendChild(U.el('h4', null, t));
+    const btn = (t, fn) => panel.appendChild(U.el('button', { onclick: (e) => { e.stopPropagation(); fn(); refresh(); } }, t));
+    const flag = (k, v) => DA.setFlag(k, v);
+    sec('CCTV');
+    btn('open', () => DA.devices.cctv.open());
+    btn('offsets', () => flag('cctv_offsets', !DA.flag('cctv_offsets')));
+    btn('figure+', () => DA.devices.cctv.setFigureStage(DA.state.cctv.figureStage + 1));
+    btn('figure 0', () => DA.devices.cctv.setFigureStage(0));
+    btn('power', () => DA.devices.cctv.setOn(!DA.state.cctv.on));
+    btn('predict', () => { window.__predict = window.__predict ? null : { x: 22, y: 14.2 }; });
+    sec('PHONE');
+    btn('ring', () => DA.devices.phone.ring());
+    btn('interact', () => DA.interact.fire({ id: 'phone', kind: 'phone' }));
+    btn('choice', () => DA.ui.choice([{ id: 'a', text: 'Hello?' }, { id: 'b', text: '...' }]));
+    btn('hangup', () => DA.devices.phone.hangup());
+    sec('MAP / PAPER');
+    btn('map', () => DA.devices.map.open().then((r) => console.log('map →', r)));
+    btn('map find', () => DA.devices.map.open({ find: 'kestrel_road', note: 'Kestrel Rd — past the quarry turnoff — green MM 14' }).then((r) => console.log('map →', r)));
+    btn('paperwork', () => DA.devices.paperwork.open().then((r) => console.log('paper →', r)));
+    sec('MIRROR / PHOTO');
+    for (let i = 0; i <= 3; i++) btn('mirror ' + i, () => { flag('mirror_stage', i); DA.devices.mirror.open(); });
+    btn('photo', () => DA.devices.photo.open());
+    btn('four', () => flag('photo_four', !DA.flag('photo_four')));
+    sec('KEYPAD / TERMINAL');
+    btn('keypad', () => DA.interact.fire({ id: 'key_cabinet', kind: 'keypad', code: 1978, item: 'key_records' }));
+    btn('relay', () => DA.interact.fire({ id: 'relay_door', kind: 'keypad', code: '0213' }));
+    btn('terminal', () => DA.devices.terminal.open());
+    btn('busy', () => flag('no_archive', !DA.flag('no_archive')));
+    btn('timelines', () => flag('archives_are_timelines', !DA.flag('archives_are_timelines')));
+    sec('WEATHER / CALENDAR');
+    btn('mast', () => DA.devices.weather.open({ source: 'mast' }));
+    btn('panel', () => DA.devices.weather.open({ source: 'panel' }));
+    btn('sunrise?', () => flag('sunrise_unknown', !DA.flag('sunrise_unknown')));
+    btn('calendar', () => DA.devices.calendar.open());
+    btn('23:50', () => { DA.state.clock.min = 23 * 60 + 50; DA.setFlag('calendar_date', undefined); });
+    btn('02:41', () => { DA.state.clock.min = 24 * 60 + 161; });
+    sec('KINDS');
+    btn('breaker (C trip)', () => { DA.state.world.breakers = { A: true, B: true, C: false, D: true, E: true, F: true }; DA.interact.fire({ id: 'breaker_panel', kind: 'breaker' }); });
+    btn('tapes', () => DA.interact.fire({ id: 'records_shelves', kind: 'tapes' }));
+    btn('coffee', () => DA.interact.fire({ id: 'coffee_machine', kind: 'coffee' }));
+    btn('drop mug', () => DA.takeItem('mug'));
+    btn('generator', () => DA.interact.fire({ id: 'generator', kind: 'generator' }));
+    btn('vent', () => DA.interact.fire(DA.maps.defs.station.interact.find((i) => i.id === 'vent_office')));
+    btn('lever', () => DA.interact.fire({ id: 'limiter_1', kind: 'lever' }));
+    panel.appendChild(stateEl);
+    function refresh() {
+      stateEl.textContent = 'missing: ' + __missing.join(',') + '\nrender: ' + !!(DA.render && DA.render.renderView) +
+        '\ntop: ' + (DA.modes.top() && DA.modes.top().name) + '\ncctv: ' + JSON.stringify(DA.state.cctv) +
+        '\nflags: ' + JSON.stringify(DA.state.flags) + '\ninv: ' + DA.state.inventory.join(',');
+    }
+    DA.bus.on('mode:enter', refresh);
+    DA.bus.on('mode:exit', refresh);
+    refresh();
+    window.__events = [];
+    ['cctv:open', 'cctv:close', 'cctv:view', 'cctv:figure', 'phone:ring', 'phone:answer', 'phone:hangup', 'map:located', 'paperwork:done',
+      'keypad:ok', 'keypad:bad', 'weather:read', 'weather:view', 'calendar:flipped', 'coffee:made', 'breaker:reset', 'generator:toggle',
+      'tape:found', 'vent:open', 'lever', 'mirror:open', 'photo:view', 'note:found', 'device:open', 'device:close', 'archive:saved']
+      .forEach((n) => DA.bus.on(n, (d) => __events.push([n, d])));
+  })();
+  </script>
+</body>
+</html>

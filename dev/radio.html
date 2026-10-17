@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEAD AIR — radio harness</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Special+Elite&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/radio.css">
+  <style>
+    /* harness-only chrome */
+    #radiodev-panel { position: fixed; right: 6px; top: 6px; z-index: 999; display: flex; flex-wrap: wrap; gap: 4px; max-width: 360px; font: 11px monospace; }
+    #radiodev-panel button { font: 11px monospace; background: #222; color: #ddd; border: 1px solid #555; padding: 2px 6px; cursor: pointer; }
+    #radiodev-panel.hidden { display: none; }
+    #radiodev-subs { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); width: 70%; text-align: center; font-size: calc(var(--u) * 2.4); color: #eee; text-shadow: 0 1px 3px #000; }
+    #radiodev-subs div { margin-top: 0.3em; }
+    #radiodev-subs .k-radio { color: #ffcf8a; }
+    #radiodev-subs .k-sfx { color: #aaa; font-style: italic; }
+    #radiodev-explore { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #555; font-size: calc(var(--u) * 3); background: repeating-linear-gradient(45deg, #0b0b0b 0 20px, #101010 20px 40px); }
+  </style>
+  <script>
+    // ?manual → no requestAnimationFrame loop: tests drive DA.step(dt) deterministically.
+    if (/[?&]manual\b/.test(location.search)) window.requestAnimationFrame = function () { return 0; };
+  </script>
+</head>
+<body>
+  <div id="game">
+    <div id="stage">
+      <canvas id="view" width="480" height="270"></canvas>
+      <div id="hud"><div id="radiodev-subs"></div></div>
+      <div id="screens"><div id="radiodev-explore">[ explore stub — press R or click to sit at the radio ]</div></div>
+    </div>
+  </div>
+  <div id="radiodev-panel"></div>
+
+  <script src="../js/core.js"></script>
+  <script>
+  /* ---------------------------------------------------------------- stubs (harness only) */
+  (function () {
+    'use strict';
+    const DA = window.DA;
+    const U = DA.util;
+
+    /* DA.content: test data exercising every step form. */
+    DA.content = {
+      speakers: {
+        woman: { name: 'WOMAN', color: '#f3c7a0', voice: { gender: 'f' } },
+        dispatch: { name: 'COUNTY DISPATCH', color: '#9fd0ff', voice: { gender: 'f' } },
+        trucker: { name: 'TRUCKER', color: '#ffd27a', voice: { gender: 'm' } },
+        police: { name: 'SHERIFF', color: '#a8c7ff', voice: { gender: 'm' } },
+        weather: { name: 'NOAA', color: '#b0e0c0', voice: { gender: 'n' } },
+        you: { name: 'YOU', color: '#8fb0dd', voice: { gender: 'm' } },
+        you_now: { name: 'YOU (NOW)', color: '#ff9a8a', voice: { gender: 'm' } },
+        you_recorded: { name: 'TAPE', color: '#c8c0a6', voice: { gender: 'm' } },
+        you_panic: { name: 'UNIDENTIFIED MALE', color: '#e6d3a3', voice: { gender: 'm' } },
+        you_old: { name: 'OLD MAN', color: '#d0c0a0', voice: { gender: 'm' } },
+        pilot: { name: 'PILOT', color: '#cfe', voice: { gender: 'm' } },
+        researcher_a: { name: 'RESEARCHER', color: '#ddd', voice: { gender: 'm' } },
+        researcher_b: { name: 'RESEARCHER 2', color: '#ccc', voice: { gender: 'f' } },
+        unknown: { name: 'UNKNOWN', color: '#aaa', voice: { gender: 'n' } },
+      },
+      tx: {
+        tx_weather_loop: {
+          freq: 162.55, bearing: 0, sender: 'NOAA WEATHER RADIO', summary: 'Weather loop',
+          script: { start: [
+            { s: 'weather', t: 'NOAA Weather Radio, station K-E-C fifty-two, with the forecast for Harlan County.' },
+            { s: 'weather', t: 'Tonight: heavy rain, locally two inches. Winds west at fifteen, gusting to thirty.' },
+            { wait: 1 },
+            { s: 'weather', t: 'Flash flood watch remains in effect until six a.m.' },
+          ] },
+        },
+        tx_test_woman: {
+          freq: 148.32, bearing: 300, width: 0.05, strength: 0.85,
+          sender: 'UNIDENTIFIED — FEMALE', summary: 'Woman trapped in overturned car',
+          stamp: { day: 28, h: 2, m: 13 }, future: true, alert: true,
+          hail: [{ s: 'woman', t: 'Hello? Is anybody there?' }], hailGap: 3,
+          waitLines: [{ s: 'woman', t: 'Please... are you still there?' }], waitGap: 4,
+          script: {
+            start: [
+              { s: 'woman', t: 'Oh thank God. I hit a deer and the car rolled into a ditch.', alt: 'Thank God. A deer, I hit a deer, and we rolled.', sfx: 'rain_car' },
+              { sfx: 'glass_break', cap: 'metal creaking', d: 1.2 },
+              { wait: 0.5 },
+              { fx: { set: { test_fx_flag: true } } },
+              { emit: 'test:emitted' },
+              { choose: [
+                { id: 'respond', t: 'This is Relay Station Fourteen. I hear you. Where are you?', next: 'where' },
+                { id: 'log', t: "[Log it. Don't respond.]", silent: true, next: 'plead' },
+                { id: 'quiet', t: 'Stay calm. Stay on the line.', interfere: false, next: 'where' },
+              ], timeout: 20, onTimeout: 'plead', prompt: 'She is waiting.' },
+            ],
+            where: [{ s: 'woman', t: 'Kestrel Road. Past the quarry turnoff. Green mile marker fourteen.' }, { goto: 'tail' }],
+            plead: [{ s: 'woman', t: 'Please. Please answer me.' }, { end: true, fx: { set: { test_plead: true } } }],
+            tail: [{ s: 'woman', t: 'Is it still raining where you are?' }, { end: true, fx: { set: { test_tail: true } } }],
+          },
+        },
+        tx_test_dispatch: {
+          freq: 155.34, sender: 'COUNTY DISPATCH', summary: 'Radio check reply',
+          script: [{ s: 'dispatch', t: 'Station Fourteen, County. Read you five by five. Quiet night.' }],
+        },
+        tx_test_present: {
+          freq: 27.18, bearing: 90, sender: 'CB 19 — TRUCKER', summary: 'Flat tyre on Route 9',
+          script: { start: [
+            { s: 'trucker', t: 'Breaker one-nine, anybody out there? Got a flat on the nine.' },
+            { choose: [{ id: 'help', t: 'Copy, driver. I will call it in.' }, { id: 'ignore', t: '[Ignore him.]', silent: true }], timeout: 10 },
+          ] },
+        },
+        tx_test_offset: {
+          freq: 27.18, bearing: 90, sender: 'CB 19', summary: 'Truck broke down', offsetSec: 2460, future: true,
+          script: [{ s: 'trucker', t: 'Breaker one-nine, I got a truck down at mile forty.' }],
+        },
+        tx_test_years: {
+          freq: 121.5, sender: 'UNKNOWN AIRCRAFT', summary: 'Dated three years ahead', stamp: { y: 2002, mo: 10, d: 27, h: 3, m: 0 }, future: true,
+          script: [{ s: 'pilot', t: 'Mayday, mayday. Anyone on guard.' }],
+        },
+        tx_test_17: {
+          freq: 148.32, bearing: 300, sender: 'UNIDENTIFIED — MALE', summary: 'A familiar voice', future: true,
+          script: [{ s: 'you_panic', t: 'Station Fourteen, listen carefully. Do not answer transmission {N19}.' }],
+        },
+        tx_test_null: {
+          freq: 148.32, stampText: 'NULL', offsetText: '-00:00:04', sender: 'STATION 14', summary: 'I CAN HEAR YOU READING THIS.',
+          script: [{ s: 'you', t: 'I can hear you reading this.' }],
+        },
+        tx_test_power: {
+          freq: 148.32, sender: 'GIRL', summary: 'Transmission nineteen', future: true,
+          script: [{ s: 'woman', t: 'Hello?' }, { choose: [{ id: 'off', t: '[Turn off the receiver.]', silent: true, action: 'power_off' }, { id: 'respond', t: 'Who is this?' }] }, { s: 'woman', t: 'never reached' }],
+        },
+      },
+      roomfeed: {
+        rf_test: { offset: 7, steps: [
+          { at: 0, cap: 'chair scraping', sfx: 'chair_scrape', event: 'chair' },
+          { at: 2.5, cap: 'glass breaking', sfx: 'glass_break', event: 'glass' },
+        ] },
+        rf_leaving: { offset: 194, steps: [
+          { at: 0, s: 'you', t: "Okay. I'm leaving the station.", event: 'leave_line' },
+          { at: 3, cap: 'footsteps', sfx: 'footstep' },
+          { at: 6, cap: 'front door opens', sfx: 'door_open', event: 'door' },
+          { at: 12, s: 'you', t: 'Oh God.' },
+          { at: 14, cap: 'running', event: 'run' },
+          { at: 17, cap: 'impact on the front door', sfx: 'impact', event: 'impact' },
+          { at: 19, cap: 'screaming', sfx: 'scream_distant', event: 'scream' },
+        ] },
+      },
+      outgoing: {
+        out_radio_check: { freq: 155.34, text: 'County, Station Fourteen, radio check.' },
+        out_warn_bridge: { freq: 27.18, text: 'Breaker nineteen, anyone near Harlan Creek bridge: slow down, there is a truck across both lanes.', future: true, once: true },
+      },
+      tapes: {
+        tape_1954: { label: '1954 — SITE SURVEY #3', year: 1954, desc: 'reel transfer', lines: [
+          { s: 'researcher_a', t: 'Test three. The delay is now three hundred milliseconds.' },
+          { wait: 0.6 },
+          { s: 'researcher_b', t: 'That is not possible.' },
+          { sfx: 'static_burst', cap: 'static', d: 1 },
+        ] },
+        tape_name: { label: '{NAME_UP} — 1961', year: 1961, lines: [{ s: 'you_old', t: 'If you are hearing this, {NAME}, you already sat down.' }] },
+      },
+      fragments: [
+        'Keep the channel open.', 'You only destroyed yours.', "Don't turn around.", 'Station Fourteen, radio check.',
+        { s: 'you_panic', t: "He isn't you anymore." }, 'Why didn\'t you leave?', 'Is it still raining where you are?',
+      ],
+    };
+
+    /* DA.ui stub: on-page subtitles + journal log. */
+    window.__subs = [];
+    window.__journal = [];
+    DA.ui = {
+      subtitle(text, opts) {
+        opts = opts || {};
+        window.__subs.push({ text, opts });
+        const box = document.getElementById('radiodev-subs');
+        if (box) {
+          const d = U.el('div', { class: 'k-' + (opts.kind || 'speech'), text: (opts.speaker ? opts.speaker.toUpperCase() + ': ' : '') + text });
+          box.appendChild(d);
+          while (box.children.length > 3) box.firstChild.remove();
+          DA.timers.after(opts.dur || 3, () => d.remove());
+        }
+        return window.__subs.length;
+      },
+      journal(tab) { window.__journal.push(tab); },
+      prompt() {},
+      toast() {},
+    };
+
+    /* DA.world stub: radio audibility controlled by the test. */
+    window.__aud = 0.6;
+    DA.world = {
+      player: { x: 0, y: 0, running: false, noise: 0 },
+      radioAudibility: () => window.__aud,
+      power: () => !window.__mainsDead,
+    };
+
+    /* DA.interact stub. */
+    const handlers = {};
+    DA.interact = {
+      on(key, fn) { (handlers[key] = handlers[key] || []).push(fn); },
+      fire(t) {
+        DA.bus.emit('interact', { id: t.id, kind: t.kind, target: t });
+        for (const fn of (handlers[t.id] || []).concat(handlers[t.kind] || [])) if (fn(t) === true) return true;
+        return false;
+      },
+    };
+
+    /* DA.audio stub: records every call. */
+    window.__A = { play: [], voice: [], static: [], lastStatic: null };
+    DA.audio = {
+      play(name, opts) { window.__A.play.push({ name, opts, t: DA.simTime }); return { stop() {} }; },
+      voice(text, spk, opts) { window.__A.voice.push({ text, spk, opts, t: DA.simTime }); return { dur: U.lineDur(text), stop() {} }; },
+      radioStatic(level, opts) { window.__A.lastStatic = level; },
+    };
+
+    /* explore + cctv mode stubs so the desk has somewhere to return to. */
+    DA.bus.on('boot', () => {
+      DA.modes.register('explore', {
+        enter() { document.getElementById('radiodev-explore').classList.remove('hidden'); },
+        cover(c) { document.getElementById('radiodev-explore').classList.toggle('hidden', c); },
+        onKey(e, down) { if (down && e.code === 'KeyR') { DA.interact.fire({ id: 'radio_desk', kind: 'radio' }); return true; } return false; },
+        onMouseDown(e) { if (e.target.id === 'radiodev-explore') { DA.interact.fire({ id: 'radio_desk', kind: 'radio' }); return true; } return false; },
+      });
+      DA.modes.register('cctv', {
+        opaque: true,
+        enter() { window.__cctv = (window.__cctv || 0) + 1; },
+        onKey(e, down) { if (down && e.code === 'Escape') { DA.modes.pop(); return true; } return false; },
+      });
+    });
+    window.__events = [];
+    ['radio:tuned', 'radio:lock', 'radio:lost', 'radio:received', 'radio:line', 'radio:choice', 'radio:mic', 'radio:sent', 'radio:ended',
+      'radio:logged', 'radio:power', 'radio:log-changed', 'roomfeed:event', 'roomfeed:start', 'roomfeed:end', 'roomfeed:zero', 'tape:play', 'tape:end',
+      'mug:placed', 'interference', 'test:emitted', 'radio:scan', 'radio:carrier', 'radio:choose', 'radio:sit', 'radio:stand', 'radio:missed', 'radio:action', 'radio:offset-unit', 'radio:bearing'].forEach((n) =>
+      DA.bus.on(n, (d) => { if (n !== 'radio:tuned' && n !== 'radio:line') window.__events.push({ n, d: d && JSON.parse(JSON.stringify(d, (k, v) => (k === 'entry' || k === 'result' ? v : v))), t: DA.simTime }); }));
+  })();
+  </script>
+  <script src="../js/radio.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const DA = window.DA;
+    function fitStage() {
+      const w = window.innerWidth, h = window.innerHeight;
+      let sw = w, sh = (w * 9) / 16;
+      if (sh > h) { sh = h; sw = (h * 16) / 9; }
+      const root = document.documentElement.style;
+      root.setProperty('--stage-w', Math.floor(sw) + 'px');
+      root.setProperty('--stage-h', Math.floor(sh) + 'px');
+      DA.bus.emit('resize', { w: Math.floor(sw), h: Math.floor(sh) });
+    }
+    window.addEventListener('resize', fitStage);
+    /** Deterministic stepping for tests. */
+    /* Each step is followed by a microtask flush so async transmission scripts advance exactly as
+       they do between real animation frames. Returns a Promise (await it). */
+    window.stepFor = async (sec, dt) => {
+      dt = dt || 1 / 60;
+      for (let t = 0; t < sec - 1e-9; t += dt) {
+        DA.step(dt);
+        for (let k = 0; k < 40; k++) await null;
+      }
+    };
+    window.addEventListener('load', () => {
+      fitStage();
+      DA.boot();
+      DA.newGame('Adam');
+      DA.modes.push('explore');
+      if (/[?&]sit\b/.test(location.search)) DA.radio.sit();
+      // harness panel
+      const panel = document.getElementById('radiodev-panel');
+      if (/[?&]clean\b/.test(location.search)) panel.classList.add('hidden');
+      const btn = (label, fn) => panel.appendChild(DA.util.el('button', { text: label, onclick: (e) => { e.stopPropagation(); fn(); } }));
+      btn('sit', () => DA.radio.sit());
+      btn('woman', () => DA.radio.transmit('tx_test_woman', { force: true }));
+      btn('dispatch', () => DA.radio.transmit('tx_test_dispatch', { noLock: true }));
+      btn('trucker', () => DA.radio.transmit('tx_test_present'));
+      btn('outgoing', () => { DA.radio.addOutgoing('out_radio_check'); DA.radio.addOutgoing('out_warn_bridge'); });
+      btn('offset unit', () => DA.setFlag('offset_unit', !DA.flag('offset_unit')));
+      btn('rf_test', () => DA.radio.roomFeed('rf_test'));
+      btn('rf_leaving', () => DA.radio.roomFeed('rf_leaving', { force: true }));
+      btn('jam', () => DA.radio.jam(DA.state.radio.jam ? 0 : 0.8));
+      btn('power', () => DA.radio.setPower(!DA.state.radio.power));
+      btn('tape', () => DA.radio.insertTape('tape_1954'));
+      btn('note', () => DA.radio.addNote(14.0, '??? (the room)', 'you'));
+      btn('mug', () => { DA.giveItem('mug'); });
+      btn('cctv_on', () => DA.setFlag('cctv_on', !DA.flag('cctv_on')));
+      btn('scan', () => DA.radio.setScanning(!DA.state.radio.scanning));
+      btn('realtime', () => DA.setFlag('you_realtime', !DA.flag('you_realtime')));
+    });
+  })();
+  </script>
+</body>
+</html>
